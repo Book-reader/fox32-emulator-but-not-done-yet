@@ -250,11 +250,7 @@ fn int main(String[] args)
 				
 				inst = (Instruction)cpu.mem_get(*cpu.inst_ptr, 2).get(W16);
 
-				logger::info("%s 0x%.8x -> %s", iters, *cpu.inst_ptr, inst);
-				if (inst.has_offset)
-				{
-					logger::info("Nearby mem: %s", cpu.mem_get(*cpu.inst_ptr, 10));
-				}
+				logger::debug("%s 0x%.8x -> %s", iters, *cpu.inst_ptr, inst);
 
 				// Point at the next byte
 				cpu.inst_ptr_next = *cpu.inst_ptr + common::INST_SIZE;
