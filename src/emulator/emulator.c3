@@ -593,14 +593,14 @@ macro Cpu.@args(&self, Instruction inst, InstructionType $type, BitWidth $width;
 			@body(self.get_val($width, inst, SRC), no_param($type, DST));
 		$case 2:
 			$if $type.is_bit_op():
-				$typefrom($width.type) src = self.get_val(W8, inst, SRC);
-				// @body(self.get_val(W8, inst, SRC), self.get_val($width, inst, DST));
+				// $typefrom($width.type) src = self.get_val(W8, inst, SRC);
+				@body(self.get_val(W8, inst, SRC), self.get_val($width, inst, DST));
 			$else
-				$typefrom($width.type) src = self.get_val($width, inst, SRC);
-				// @body(self.get_val($width, inst, SRC), self.get_val($width, inst, DST));
+				// $typefrom($width.type) src = self.get_val($width, inst, SRC);
+				@body(self.get_val($width, inst, SRC), self.get_val($width, inst, DST));
 			$endif
-			$typefrom($width.type) dst = self.get_val($width, inst, DST);
-			@body(src, dst);
+			// $typefrom($width.type) dst = self.get_val($width, inst, DST);
+			// @body(src, dst);
 		$default:
 			$error("What");
 	$endswitch
