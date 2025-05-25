@@ -9,7 +9,7 @@ import std::collections::list;
 
 alias alloc = allocator::mem;
 
-fn char[] mmu_get(/*&self, */uint addr, uint len) @inline
+fn char[] mmu_get(/*&self, */uint addr, uint len)
 {
 	// cannot have overlap
 	if (addr < common::RAM_SIZE && addr + len - 1 <= common::RAM_SIZE)
@@ -26,7 +26,7 @@ fn char[] mmu_get(/*&self, */uint addr, uint len) @inline
 	}
 }
 
-fn void mmu_set(uint addr, uint len, char[] buf) @inline
+fn void mmu_set(uint addr, uint len, char[] buf)
 {
 	// cannot have overlap
 	if (addr < common::RAM_SIZE && addr + len - 1 <= common::RAM_SIZE)
@@ -238,7 +238,7 @@ fn int main(String[] args)
 					{
 		//				running = false; //1000000000
 						NanoDuration nano_seconds = clock.mark(); 
-						io::eprintfn("\nTook %s or %s ns to do %s iterations, %dMhz", nano_seconds, @as(long, nano_seconds), iteration, (@as(double, iteration) /	nano_seconds.to_sec() / 1000000).round() );
+						logger::info("\nTook %s or %s ns to do %s iterations, %dMhz", nano_seconds, @as(long, nano_seconds), iteration, (@as(double, iteration) /	nano_seconds.to_sec() / 1000000).round() );
 						// thread::sleep(time::sec(1));
 						iteration = 0;
 						clock = clock::now();
@@ -250,7 +250,11 @@ fn int main(String[] args)
 				
 				inst = (Instruction)cpu.mem_get(*cpu.inst_ptr, 2).get(W16);
 
-				logger::debug("%s 0x%.8x -> %s", iters, *cpu.inst_ptr, inst);
+				logger::info("%s 0x%.8x -> %s", iters, *cpu.inst_ptr, inst);
+				if (inst.has_offset)
+				{
+					logger::info("Nearby mem: %s", cpu.mem_get(*cpu.inst_ptr, 10));
+				}
 
 				// Point at the next byte
 				cpu.inst_ptr_next = *cpu.inst_ptr + common::INST_SIZE;
@@ -301,6 +305,10 @@ fn int main(String[] args)
 			case inst::MOV:
 				cpu.inst_mov(inst);
 				nextcase inst::GET;
+			case inst::MOVZ:
+				// TODO: merge with inst_mov using generic
+				cpu.inst_movz(inst);
+				nextcase inst::GET;
 			case inst::CMP:
 				cpu.inst_cmp(inst);
 				nextcase inst::GET;
@@ -343,6 +351,9 @@ fn int main(String[] args)
 				nextcase inst::GET;
 			case inst::SLA:
 				cpu.inst_sla(inst);
+				nextcase inst::GET;
+			case inst::SRA:
+				cpu.inst_sra(inst);
 				nextcase inst::GET;
 			default:
 				logger::error("Instruction %s is not implemented yet", inst.type.get_name());
@@ -392,6 +403,14 @@ fn void Cpu.inst_mov(&self, Instruction inst) @inline => self.@setup_w(inst; Bit
 {
 	logger::debug("Moving %s", #src);
 	self.set_val($width, inst, DST, #src);
+}
+
+// FIXME: this doesn't seem to work, maybe just because when encounted in the rom it also has 'has_offset == true'
+fn void Cpu.inst_movz(&self, Instruction inst) @inline => self.@setup_w(inst; BitWidth $width, #src, #dst)
+{
+	logger::debug("MovZing %s", #src);
+	// TODO: this might not actually work because W32 is also used for offset calculation which could break things
+	self.set_val(W32, inst, DST, (uint)#src);
 }
 
 fn void Cpu.inst_cmp(&self, Instruction inst) @inline => self.@setup_w(inst; BitWidth $width, #src, #dst)
@@ -483,9 +502,17 @@ fn void Cpu.inst_sla(&self, Instruction inst) @inline => self.@setup_w(inst; Bit
 	self.flags.zero = res == 0;
 }
 
+fn void Cpu.inst_sra(&self, Instruction inst) @inline => self.@setup_w(inst; BitWidth $width, #src, #dst)
+{
+	$typefrom($width.type) res = ($typefrom($width.itype))#dst >> ($typefrom($width.itype))#src;
+	self.set_val($width, inst, DST, res);
+	self.flags.zero = res == 0;
+}
+
 
 macro bool Cpu.should_execute(&self, Instruction inst)
 {
+	// TODO: @jump?
 	switch (inst.cond)
 	{
 		case ALWAYS:
@@ -585,25 +612,21 @@ macro no_param(InstructionType $type, ArgPos $pos) { $error("Instruction " +++ $
 <*
 	@require $typeof(val).typeid == $width.type
 *>
-macro Cpu.set_val(&self, BitWidth $width, Instruction inst, ArgPos $arg, val, bool $zero = false)
+macro Cpu.set_val(&self, BitWidth $width, Instruction inst, ArgPos $arg, val)
 {
 	uint offset = @arg_offset($width, inst, $arg);
 	// logger::debug("Current idx is %s, calculated offset is %s", self.inst_ptr_next, offset);
-	$if !$zero:
-		switch (inst.$eval($arg.name))
-		{
-			case REG:
-				self.regs[self.mem_get(self.inst_ptr_next + offset, 1).get(W8)].write($width, val);
-			case REG_PTR:
-				self.mem_get(self.regs[self.mem_get(self.inst_ptr_next + offset, 1).get(W8)], $width).set($width, val);
-			case IMM:
-				abort("mov into immediate value not implemented");
-			case IMM_PTR:
-				self.mem_get(self.mem_get(self.inst_ptr_next + offset, common::PTR_SIZE).get(W32), $width).set($width, val);
-		}
-	$else
-		$error("$zero not implented yet");
-	$endif
+	switch (inst.$eval($arg.name))
+	{
+		case REG:
+			self.regs[self.mem_get(self.inst_ptr_next + offset, 1).get(W8)].write($width, val);
+		case REG_PTR:
+			self.mem_get(self.regs[self.mem_get(self.inst_ptr_next + offset, 1).get(W8)], $width).set($width, val);
+		case IMM:
+			abort("mov into immediate value not implemented");
+		case IMM_PTR:
+			self.mem_get(self.mem_get(self.inst_ptr_next + offset, common::PTR_SIZE).get(W32), $width).set($width, val);
+	}
 }
 
 <*
@@ -640,6 +663,9 @@ macro void @each_width(BitWidth width; @body(BitWidth $width))
 	}
 }
 
+// TODO: consider using this once I have more things as generic functions
+// macro void @earch_arg(ArgType type; @body(ArgType $type))
+
 macro @as_width(BitWidth $width, #expr, bool $signed = false)
 {
 	$if $signed:
@@ -651,35 +677,44 @@ macro @as_width(BitWidth $width, #expr, bool $signed = false)
 
 macro Cpu.move_forward(&self, BitWidth $width, InstructionType $type, Instruction inst)
 {
-	// *self.inst_ptr += $width.size * 2;
-	if (inst.has_offset)
+/*	if (inst.has_offset)
 	{
-		self.inst_ptr_next += 2;
-	}
+		if (inst.src == REG_PTR) self.inst_ptr_next ++;
+		if (inst.dst == REG_PTR) self.inst_ptr_next ++;
+	}*/
 	$switch $type.arg_count():
 		$case 1:
-			self.inst_ptr_next += arg_size(inst.src, $width);
+			self.inst_ptr_next += arg_size(inst, SRC, $width);
 		$case 2:
 			$if $type.is_bit_op():
+				// TODO: this probably wont work with `srl r0, [my_label]`
+				// but it seems like it's what fox32 does?
 				self.inst_ptr_next += BitWidth.W8;
 			$else
-				self.inst_ptr_next += arg_size(inst.src, $width);
+				self.inst_ptr_next += arg_size(inst, SRC, $width);
 			$endif
-			self.inst_ptr_next += arg_size(inst.dst, $width);
+			self.inst_ptr_next += arg_size(inst, DST, $width);
 		$case 0:
+			return;
+		$default:
+			$error("No");
 	$endswitch
 }
 
-<*
-	FIXME: Does not work if inst.has_offset == true
-*>
-macro uint arg_size(ArgType type, BitWidth $width)
+macro uint arg_size(Instruction inst, ArgPos $arg, BitWidth $width)
 {
-	switch (type)
+	switch (inst.$eval($arg.name))
 	{
 		case REG:
 		case REG_PTR:
-			return 1;
+			if (@unlikely(inst.has_offset))
+			{
+				return 2;
+			}
+			else
+			{
+				return 1;
+			}
 		case IMM:
 			return $width.size;
 		case IMM_PTR:
@@ -687,7 +722,7 @@ macro uint arg_size(ArgType type, BitWidth $width)
 	}
 }
 
-macro uint @arg_offset(BitWidth $width, Instruction inst, ArgPos $arg) => @select($arg == SRC, 0, (uint)inst.has_offset + arg_size(inst.src, $width));
+macro uint @arg_offset(BitWidth $width, Instruction inst, ArgPos $arg) => @select($arg == SRC, 0, arg_size(inst, SRC, $width));
 
 enum ArgPos : (String name)
 {
