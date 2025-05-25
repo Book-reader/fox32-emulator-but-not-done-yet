@@ -702,6 +702,7 @@ macro uint arg_size(Instruction inst, ArgPos $arg, BitWidth $width)
 	switch (inst.$eval($arg.name))
 	{
 		case REG:
+			return 1;
 		case REG_PTR:
 			if (@unlikely(inst.has_offset))
 			{
