@@ -677,11 +677,6 @@ macro @as_width(BitWidth $width, #expr, bool $signed = false)
 
 macro Cpu.move_forward(&self, BitWidth $width, InstructionType $type, Instruction inst)
 {
-/*	if (inst.has_offset)
-	{
-		if (inst.src == REG_PTR) self.inst_ptr_next ++;
-		if (inst.dst == REG_PTR) self.inst_ptr_next ++;
-	}*/
 	$switch $type.arg_count():
 		$case 1:
 			self.inst_ptr_next += arg_size(inst, SRC, $width);
