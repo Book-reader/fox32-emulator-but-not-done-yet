@@ -562,10 +562,11 @@ macro Cpu.@setup_w(&self, Instruction inst, bool $move = true; @body(BitWidth $w
 
 macro Cpu.@setup(&self, Instruction inst, BitWidth $width, bool $move = true; @body(#src, #dst))
 {
-	InstructionType $type = $eval("inst::" +++ @str_upper($$FUNC[9..]));
+	String $inst_name = @str_upper($$FUNC[9..]);
+	InstructionType $type = $eval("inst::" +++ $inst_name);
 	if (self.should_execute(inst))
 	{
-		self.@args(inst, $type, $width; #src, #dst)
+		self.@args(inst, $inst_name, $type, $width; #src, #dst)
 		{
 			@body(#src, #dst);
 		};
@@ -582,15 +583,15 @@ macro Cpu.@setup(&self, Instruction inst, BitWidth $width, bool $move = true; @b
 	$endif
 }
 
-macro Cpu.@args(&self, Instruction inst, InstructionType $type, BitWidth $width; @body(#src, #dst))
+macro Cpu.@args(&self, Instruction inst, String $inst_name, InstructionType $type, BitWidth $width; @body(#src, #dst))
 {
 	$switch $type.arg_count():
 		$case 0:
-			@body(no_params($type, SRC), @no_param($type, DST));
+			@body(no_params($inst_name, SRC), @no_param($inst_name, DST));
 		$case 1:
 			// $typefrom($width.type) src = self.get_val($width, inst, SRC);
 			// @body(src, no_param($type, DST));
-			@body(self.get_val($width, inst, SRC), no_param($type, DST));
+			@body(self.get_val($width, inst, SRC), no_param($inst_name, DST));
 		$case 2:
 			$if $type.is_bit_op():
 				// $typefrom($width.type) src = self.get_val(W8, inst, SRC);
@@ -607,7 +608,7 @@ macro Cpu.@args(&self, Instruction inst, InstructionType $type, BitWidth $width;
 }
 
 // only to be used in the above Cpu.@args
-macro no_param(InstructionType $type, ArgPos $pos) { $error("Instruction " +++ $type.get_name() +++ " does not have parameter " +++ $pos.name); }
+macro no_param(String $inst_name, ArgPos $pos) { $error("Instruction " +++ $inst_name +++ " does not have parameter " +++ $pos.name); }
 
 <*
 	@require $typeof(val).typeid == $width.type
