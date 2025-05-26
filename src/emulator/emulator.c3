@@ -255,7 +255,7 @@ fn int main(String[] args)
 				// Point at the next byte
 				cpu.inst_ptr_next = *cpu.inst_ptr + common::INST_SIZE;
 
-				$if $feature(DEBUG):
+				/*$if $feature(DEBUG):
 					@each_width(inst.width; BitWidth $width)
 					{
 						uint tmp = cpu.inst_ptr_next;
@@ -270,7 +270,7 @@ fn int main(String[] args)
 						$endfor
 						cpu.inst_ptr_next = tmp;
 					};
-				$endif
+				$endif*/
 
 				// Execute the current instruction
 				nextcase inst.type;
@@ -286,6 +286,9 @@ fn int main(String[] args)
 			case inst::INC:
 				cpu.inst_inc(inst);
 				nextcase inst::GET;
+			case inst::DEC:
+				cpu.inst_dec(inst);
+				nextcase inst::GET;
 			case inst::ADD:
 				cpu.inst_add(inst);
 				nextcase inst::GET;
@@ -297,6 +300,9 @@ fn int main(String[] args)
 				nextcase inst::GET;
 			case inst::DIV:
 				cpu.inst_div(inst);
+				nextcase inst::GET;
+			case inst::REM:
+				cpu.inst_rem(inst);
 				nextcase inst::GET;
 			case inst::MOV:
 				cpu.inst_mov(inst);
@@ -365,34 +371,85 @@ fn int main(String[] args)
 }
 
 // NOTE: #src and #dst are FUNCTIONS that will be called EVERY TIME they are used
+// this is fine when debug printing is enabled, but not otherwise
 fn void Cpu.inst_inc(&self, Instruction inst) @inline => self.@setup_w(inst; BitWidth $width, #src, #dst)
 {
+	// logger::debug("%s", inst);
 	logger::debug("Incrementing %s", #src);
-	self.set_val($width, inst, SRC, @as($typefrom($width.type), #src + 1));
+	$typefrom($width.type) src = #src;
+	$typefrom($width.type) res = src + (1 << inst.dst.ordinal);
+	// logger::panic("Incrementing %s by %s %s", inst, inst.dst, (1 << inst.dst.ordinal));
+	self.set_val($width, inst, SRC, res);
+	// To sortof emulate __builtin_add_overflow returning whether it overflowed
+	self.flags.carry = src < res;
+	self.flags.zero = res == 0;
+}
+
+fn void Cpu.inst_dec(&self, Instruction inst) @inline => self.@setup_w(inst; BitWidth $width, #src, #dst)
+{
+	logger::debug("Decrementing %s", #src);
+	$typefrom($width.type) src = #src;
+	$typefrom($width.type) res = src - (1 << inst.dst.ordinal);
+	self.set_val($width, inst, SRC, res);
+	self.flags.carry = src > res;
+	self.flags.zero = res == 0;
 }
 
 fn void Cpu.inst_add(&self, Instruction inst) @inline => self.@setup_w(inst; BitWidth $width, #src, #dst)
 {
 	logger::debug("Adding %s and %s", #dst, #src);
-	self.set_val($width, inst, DST, @as($typefrom($width.type), #dst + #src));
+	$typefrom($width.type) src = #src;
+	$typefrom($width.type) dst = #dst;
+	$typefrom($width.type) res = dst + src;
+	self.set_val($width, inst, DST, @as($typefrom($width.type), res));
+	// To sortof emulate __builtin_add_overflow returning whether it overflowed
+	// same for inst_sub and inst_mul
+	self.flags.carry = res > src && res > dst;
+	self.flags.zero = res == 0;
 }
 
 fn void Cpu.inst_sub(&self, Instruction inst) @inline => self.@setup_w(inst; BitWidth $width, #src, #dst)
 {
 	logger::debug("Subtracting %s and %s", #dst, #src);
-	self.set_val($width, inst, DST, @as($typefrom($width.type), #dst - #src));
+	$typefrom($width.type) src = #src;
+	$typefrom($width.type) dst = #dst;
+	$typefrom($width.type) res = dst - src;
+	self.set_val($width, inst, DST, @as($typefrom($width.type), res));
+	self.flags.carry = res < src && res < dst;
+	self.flags.zero = res == 0;
 }
 
 fn void Cpu.inst_mul(&self, Instruction inst) @inline => self.@setup_w(inst; BitWidth $width, #src, #dst)
 {
 	logger::debug("multiplying %s and %s", #dst, #src);
-	self.set_val($width, inst, DST, @as($typefrom($width.type), #dst * #src));
+	$typefrom($width.type) src = #src;
+	$typefrom($width.type) dst = #dst;
+	$typefrom($width.type) res = dst * src;
+	self.set_val($width, inst, DST, @as($typefrom($width.type), res));
+	self.flags.carry = res > src && res > dst;
+	self.flags.zero = res == 0;
 }
 
 fn void Cpu.inst_div(&self, Instruction inst) @inline => self.@setup_w(inst; BitWidth $width, #src, #dst)
 {
 	logger::debug("dividing %s by %s", #dst, #src);
-	self.set_val($width, inst, DST, @as($typefrom($width.type), #dst / #src));
+	$typefrom($width.type) src = #src;
+	$typefrom($width.type) dst = #dst;
+	if (src == 0) logger::panic("Cannot divide by zero");
+	$typefrom($width.type) res = dst / src;
+	self.set_val($width, inst, DST, @as($typefrom($width.type), res));
+	self.flags.zero = res == 0;
+}
+
+fn void Cpu.inst_rem(&self, Instruction inst) @inline => self.@setup_w(inst; BitWidth $width, #src, #dst)
+{
+	logger::debug("getting remainder of %s and %s", #dst, #src);
+	$typefrom($width.type) src = #src;
+	$typefrom($width.type) dst = #dst;
+	if (src == 0) logger::panic("Cannot divide by zero");
+	$typefrom($width.type) res = dst % src;
+	self.set_val($width, inst, DST, @as($typefrom($width.type), res));
+	self.flags.zero = res == 0;
 }
 
 fn void Cpu.inst_mov(&self, Instruction inst) @inline => self.@setup_w(inst; BitWidth $width, #src, #dst)
