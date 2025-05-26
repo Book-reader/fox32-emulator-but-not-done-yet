@@ -9,60 +9,6 @@ import std::collections::list;
 
 alias alloc = allocator::mem;
 
-fn char[] mmu_get(/*&self, */uint addr, uint len)
-{
-	// cannot have overlap
-	if (addr < common::RAM_SIZE && addr + len - 1 <= common::RAM_SIZE)
-	{
-		return mem.ram[addr:len];
-	}
-	else if (addr >= common::ROM_START && addr + len - 1 <= common::ROM_START + common::ROM_SIZE)
-	{
-		return mem.rom[addr-common::ROM_START:len];
-	}
-	else
-	{
-		abort("Out of range: 0x%.8x:%s", addr, len);
-	}
-}
-
-fn void mmu_set(uint addr, uint len, char[] buf)
-{
-	// cannot have overlap
-	if (addr < common::RAM_SIZE && addr + len - 1 <= common::RAM_SIZE)
-	{
-		mem.ram[addr:len] = buf[:len];
-	}
-	else if (addr >= common::ROM_START && addr + len - 1 <= common::ROM_START + common::ROM_SIZE)
-	{
-		mem.rom[addr-common::ROM_START:len] = buf[:len];
-	}
-	else
-	{
-		abort("Out of range: 0x%.8x:%s", addr, len);
-	}
-}
-
-struct Memory// (Addressable)
-{
-	char[] ram;
-	char[] rom;
-	//uint offset;
-}
-
-fn void Memory.init(&self)
-{
-	// self.offset = offset;
-	self.ram = mem::new_array(char, common::RAM_SIZE);
-	self.rom = mem::new_array(char, common::ROM_SIZE);
-}
-
-fn void Memory.free(&self) //@dynamic
-{
-	mem::free(self.ram);
-	mem::free(self.rom);
-}
-
 alias Register = uint;
 
 macro Register.write(&self, BitWidth $width, data)
@@ -107,39 +53,49 @@ struct Cpu
 	bool mmu_enabled;
 	bool page_directory;
 	Register[common::NUM_REGISTERS] regs;
+	usz cycles;
+	char[] ram;
+	char[] rom;
 }
 
 <*
 	@require len == buf.len
 *>
-fn void Cpu.mem_set(&self, uint start, uint len, char[] buf) @inline
+fn void Cpu.mem_set(&self, uint start, uint len, char[] buf)
 {
-	//if (!self.mmu_enabled)
-	//{
-	//	mem.ram[start:len] = buf[:len];
-	//}
-	//else
-	//{
-		mmu_set(start, len, buf);
-		// abort("MMU not implemented yet :3");
-	//}
+	// cannot have overlap
+	if (start < common::RAM_SIZE && start + len - 1 <= common::RAM_SIZE)
+	{
+		self.ram[start:len] = buf[:len];
+	}
+	else if (start >= common::ROM_START && start + len - 1 <= common::ROM_START + common::ROM_SIZE)
+	{
+		self.rom[start-common::ROM_START:len] = buf[:len];
+	}
+	else
+	{
+		self.error("Out of range: 0x%.8x:%s", start, len);
+	}
 }
 
 <*
 	@ensure return.len == len
 *>
-fn char[] Cpu.mem_get(&self, uint start, uint len) @inline
+fn char[] Cpu.mem_get(&self, uint start, uint len)
 {
-	// TODO: make this unlikely using whatever stdlib macro
-	//if (!self.mmu_enabled)
-	//{
-	//	return mem.ram[start:len];
-	//}
-	//else
-	//{
-		return mmu_get(start, len);
-		// abort("MMU not implemented yet :3");
-	//}
+	// cannot have overlap
+	if (start < common::RAM_SIZE && start + len - 1 <= common::RAM_SIZE)
+	{
+		return self.ram[start:len];
+	}
+	else if (start >= common::ROM_START && start + len - 1 <= common::ROM_START + common::ROM_SIZE)
+	{
+		return self.rom[start-common::ROM_START:len];
+	}
+	else
+	{
+		self.error("Out of range: 0x%.8x:%s", start, len);
+	}
 }
 
 fn void Cpu.init(&self)
@@ -154,9 +110,30 @@ fn void Cpu.init(&self)
 	*self.stack_ptr = common::DEFAULT_STACK_PTR;
 	self.inst_ptr_next = *self.inst_ptr;
 	self.mmu_enabled = true;
+
+	self.ram = mem::new_array(char, common::RAM_SIZE);
+	self.rom = mem::new_array(char, common::ROM_SIZE);
 }
 
-Memory mem;
+fn void Cpu.deinit(&self)
+{
+	mem::free(self.ram);
+	mem::free(self.rom);
+	*self = {};
+}
+
+macro Cpu.error(&self, String fmt, ...)
+{
+	io::eprintfn("[ERROR] (%s) At cycle %s", $$FUNC, self.cycles);
+	io::eprintf("[ERROR] At instruction %s\n[ERROR] ", (Instruction)self.mem_get(*self.inst_ptr, 2).get(W16));
+	io::eprintfn(fmt, $vasplat);
+	foreach (i, reg : self.regs)
+	{
+		logger::info("%s: %.8x", common::REG_NAMES[i], reg);
+	}
+	abort();
+}
+
 // TODO: multithreading by sending data between cpu structs with an array and a mutex
 //tlocal Cpu cpu;
 
@@ -166,13 +143,11 @@ fn int main(String[] args)
 {
 	Cpu cpu;
 	cpu.init();
-	mem.init();
-	defer mem.free();
+	defer cpu.deinit();
 
 	char[] prog;
 
 	usz max_cycles;
-	usz iters;
 
 	if (args.len > 1)
 	{
@@ -218,8 +193,8 @@ fn int main(String[] args)
 				logger::panic("Reached NOP (does not exist in fox32rom)");
 				nextcase;
 			case inst::GET:
-				iters ++;
-				if (iters == max_cycles)
+				cpu.cycles ++;
+				if (cpu.cycles == max_cycles)
 				{
 					logger::info("Hit max_cycles of %s, exiting", max_cycles);
 					nextcase inst::BREAK;
@@ -250,7 +225,8 @@ fn int main(String[] args)
 				
 				inst = (Instruction)cpu.mem_get(*cpu.inst_ptr, 2).get(W16);
 
-				logger::debug("%s 0x%.8x -> %s", iters, *cpu.inst_ptr, inst);
+				// logger::debug("%s 0x%.8x -> %s", cpu.cycles, *cpu.inst_ptr, inst);
+				logger::info("%s 0x%.8x -> %s", cpu.cycles, *cpu.inst_ptr, inst);
 
 				// Point at the next byte
 				cpu.inst_ptr_next = *cpu.inst_ptr + common::INST_SIZE;
@@ -276,7 +252,7 @@ fn int main(String[] args)
 				nextcase inst.type;
 			case inst::HALT:
 			case inst::BREAK:
-				logger::info("Exiting after %s clock cycles", iters);
+				logger::info("Exiting after %s clock cycles", cpu.cycles);
 				foreach (i, reg : cpu.regs)
 				{
 					logger::info("%s: %.8x", common::REG_NAMES[i], reg);
@@ -358,7 +334,7 @@ fn int main(String[] args)
 				cpu.inst_sra(inst);
 				nextcase inst::GET;
 			default:
-				logger::error("Instruction %s is not implemented yet", inst.type.get_name());
+				cpu.error("Instruction %s is not implemented yet", inst.type.get_name());
 				nextcase inst::BREAK;
 		}
 	}
@@ -435,7 +411,7 @@ fn void Cpu.inst_div(&self, Instruction inst) @inline => self.@setup_w(inst; Bit
 	logger::debug("dividing %s by %s", #dst, #src);
 	$typefrom($width.type) src = #src;
 	$typefrom($width.type) dst = #dst;
-	if (src == 0) logger::panic("Cannot divide by zero");
+	if (src == 0) self.error("Cannot divide by zero");
 	$typefrom($width.type) res = dst / src;
 	self.set_val($width, inst, DST, @as($typefrom($width.type), res));
 	self.flags.zero = res == 0;
@@ -446,7 +422,7 @@ fn void Cpu.inst_rem(&self, Instruction inst) @inline => self.@setup_w(inst; Bit
 	logger::debug("getting remainder of %s and %s", #dst, #src);
 	$typefrom($width.type) src = #src;
 	$typefrom($width.type) dst = #dst;
-	if (src == 0) logger::panic("Cannot divide by zero");
+	if (src == 0) self.error("Cannot divide by zero");
 	$typefrom($width.type) res = dst % src;
 	self.set_val($width, inst, DST, @as($typefrom($width.type), res));
 	self.flags.zero = res == 0;
@@ -454,8 +430,10 @@ fn void Cpu.inst_rem(&self, Instruction inst) @inline => self.@setup_w(inst; Bit
 
 fn void Cpu.inst_mov(&self, Instruction inst) @inline => self.@setup_w(inst; BitWidth $width, #src, #dst)
 {
+	$typefrom($width.type) src = #src;
+	// logger::info("moving %s into %s", src, #dst);
 	logger::debug("Moving %s", #src);
-	self.set_val($width, inst, DST, #src);
+	self.set_val($width, inst, DST, src);
 }
 
 // FIXME: this doesn't seem to work, maybe just because when encounted in the rom it also has 'has_offset == true'
@@ -557,8 +535,9 @@ fn void Cpu.inst_sla(&self, Instruction inst) @inline => self.@setup_w(inst; Bit
 
 fn void Cpu.inst_sra(&self, Instruction inst) @inline => self.@setup_w(inst; BitWidth $width, #src, #dst)
 {
+	// TODO: 'macro bool Instruction.is_signed($self)' to do this automatically
 	$typefrom($width.type) res = ($typefrom($width.itype))#dst >> ($typefrom($width.itype))#src;
-	self.set_val($width, inst, DST, res);
+	self.set_val($width, inst, DST, ($typefrom($width.type))res);
 	self.flags.zero = res == 0;
 }
 
@@ -677,7 +656,7 @@ macro Cpu.set_val(&self, BitWidth $width, Instruction inst, ArgPos $arg, val)
 		case REG_PTR:
 			self.mem_get(self.regs[self.mem_get(self.inst_ptr_next + offset, 1).get(W8)], $width).set($width, val);
 		case IMM:
-			abort("mov into immediate value not implemented");
+			self.error("mov into immediate value not implemented");
 		case IMM_PTR:
 			self.mem_get(self.mem_get(self.inst_ptr_next + offset, common::PTR_SIZE).get(W32), $width).set($width, val);
 	}
