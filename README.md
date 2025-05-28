@@ -1,13 +1,20 @@
 # Fox32 emulator but not done yet
 
-## emulator for [Fox32](https://github.com/fox32-arch) except it doesn't work :O
+## WIP emulator for [Fox32](https://github.com/fox32-arch)
 
 > [!NOTE]
-> Program doesn't compile?
-> try this:
+> It is recommended to build in a nix environment:
 > ```console
 > $ nix develop --impure
 > ```
+
+### todo:
+
+- [x] Initial Gui
+- [ ] Gui overlays
+- [ ] Interrupts
+- [ ] Any other things I can think of
+- [ ] MMU (maybe, only used by [minita](https://github.com/xrarch/mintia))
 
 ### building:
 
