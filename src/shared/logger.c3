@@ -19,8 +19,10 @@ macro info(String msg, ...)
 
 macro warn(String msg, ...)
 {
+$if !$feature(SHUTUP):
   io::eprintf("[WARNING] (%s:%s %s) ", $$FILE, $$LINE, $$FUNC);
   io::eprintfn(msg, $vasplat);
+$endif
 }
 
 macro error(String msg = "(No Messsage)", ...)

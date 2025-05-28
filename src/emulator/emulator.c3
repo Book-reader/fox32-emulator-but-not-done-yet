@@ -553,6 +553,7 @@ fn void Cpu.inst_in(&self, Instruction inst) @inline => self.@setup_w(inst; BitW
 	if (src != 0)
 	{
 		logger::warn("In from not stdin is not supported yet: 0x%.8x", src);
+		self.set_val($width, inst, DST, ($typefrom($width.type))0);
 	}
 	else
 	{
