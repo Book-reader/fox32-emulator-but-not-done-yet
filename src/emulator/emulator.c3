@@ -1,6 +1,7 @@
 module emulator;
 import common;
 import logger;
+import gui;
 
 import std::io;
 import std::thread;
@@ -41,6 +42,22 @@ bitstruct CpuFlags : char
 	bool exception_sp : 2;
 }
 
+
+/*struct FrameBuffer
+{
+	char[640*480*4]* data;
+}
+
+fn void FrameBuffer.init(&self)
+{
+	self.data = mem::new_array(char, 640*480*4);
+}
+
+fn void FrameBuffer.free(&self)
+{
+	mem::free(self.data);
+}*/
+
 struct Cpu
 {
 	// The address of the current instruction in memory
@@ -57,6 +74,7 @@ struct Cpu
 	usz cycles;
 	char[] ram;
 	char[] rom;
+//	FrameBuffer fb;
 }
 
 <*
@@ -157,12 +175,15 @@ fn void Cpu.init(&self)
 
 	self.ram = mem::new_array(char, common::RAM_SIZE);
 	self.rom = mem::new_array(char, common::ROM_SIZE);
+
+//	self.fb.init();
 }
 
 fn void Cpu.deinit(&self)
 {
 	mem::free(self.ram);
 	mem::free(self.rom);
+//	self.fb.free();
 	*self = {};
 }
 
@@ -178,9 +199,18 @@ macro Cpu.error(&self, String fmt, ...)
 	abort();
 }
 
-// TODO: multithreading by sending data between cpu structs with an array and a mutex
-//tlocal Cpu cpu;
+/*macro CpuState.@get(#self; @body(Cpu #cpu))
+{
+	(void)mutex.lock();
+	defer (void)mutex.unlock();
+	@body(#self._cpu);
+}*/
+//UnbufferedChannel{bool} gui_upd;
+// UnbufferedChannel{bool} gui_done;
+Cpu cpu;
 
+
+struct ThreadData {Cpu* cpu; bool* running;}
 // TODO: make all get instructions return a char[] so I can just do 'get_arg1()[:len] = get_arg2()[:len]' instead of all the bitmasks and switch statements and macros
 // it will make memory to memory operations faster & I can have a reg->reg version as well
 fn int main(String[] args)
@@ -188,6 +218,25 @@ fn int main(String[] args)
 	Cpu cpu;
 	cpu.init();
 	defer cpu.deinit();
+
+/*	gui_upd.init(mem)!!;
+	defer (void)gui_upd.destroy();
+	gui_done.init(mem)!!;
+	defer (void)gui_done.destroy();*/
+
+	bool running = true;
+	Thread gui_thread;
+
+	defer
+	{
+		running = false;
+		(void)gui_thread.join();
+	}
+	if (catch gui_thread.create(&gui::run_gui, &&(ThreadData){&cpu, &running}))
+	{
+		logger::error("Failed to create gui thread!");
+		return 1;
+	}
 
 	char[] prog;
 
@@ -220,9 +269,6 @@ fn int main(String[] args)
 
 	logger::debug("Executing (%s b): %h", prog.len, prog[:prog.len < 200 ? prog.len : 200]);
 
-	bool running = true;
-
-
 	$if $feature(PERF):
 		uint iterations = 0;
 		Clock clock = clock::now();
@@ -232,14 +278,18 @@ fn int main(String[] args)
 //	while (running)
 	{
 		// TODO: maybe make each Cpu.inst_... a function in an associated value for an enum, so I could just do inst.execute()
-		// it wouldn't work with the exit instructions tho... and might require multiple levels of switching/indexing so may not be better
+		// it wouldn't work with the exit instructions tho... and might require multiple levels of switching/indexing so may not be faster
 		switch (inst::GET_) @jump
 		{
 			case inst::NOP:
 				logger::panic("Reached NOP (does not exist in fox32rom)");
 				nextcase;
 			case inst::GET:
+				// set by the gui thread
+				if (@unlikely(!running)) nextcase inst::BREAK;
 				cpu.cycles ++;
+				/*gui_upd.push(true)!!;
+				if (!gui_done.pop()!!) nextcase inst::BREAK;*/
 				if (cpu.cycles == max_cycles)
 				{
 					logger::info("Hit max_cycles of %s, exiting", max_cycles);
@@ -530,13 +580,18 @@ fn void Cpu.inst_out(&self, Instruction inst) @inline => self.@setup_w(inst; Bit
 {
 	$typefrom($width.type) dst = #dst;
 
-	if (dst != 0)
+	if (dst >= 0x02000000 && dst <= 0x02000000 + (640*480*4))
 	{
-		logger::warn("Out to not stdout is not supported yet: 0x%.8x", dst);
+		logger::panic("test: Writing %.8x into framebuffer at %.8x");
+		// ((char[])self.fb.data)[dst - 0x02000000:$width].set($width, #src);
+	}
+	else if (dst == 0)
+	{
+		putchar((CInt)#src);
 	}
 	else
 	{
-		putchar((CInt)#src);
+		logger::warn("Out to 0x%.8x is not supported yet", dst);
 	}
 }
 
@@ -705,8 +760,9 @@ macro Cpu.@setup(&self, Instruction inst, BitWidth $width, bool $move = true; @b
 {
 	String $inst_name = @inst_name();
 	InstructionType $type = @inst_type();
-	// TODO: guard behind some sort of if condition
-	// self.print_instr(inst, $width, $type, $inst_name);
+	$if $feature(FOXLOG):
+		self.print_instr(inst, $width, $type, $inst_name);
+	$endif
 	if (self.should_execute(inst))
 	{
 		self.@args(inst, $inst_name, $type, $width; #src, #dst)
