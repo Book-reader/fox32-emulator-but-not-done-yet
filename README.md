@@ -1,4 +1,4 @@
-# Fox32: A WIP [fox32](https://github.com/fox32-arch) emulator written in c3
+# fox33: A WIP [fox32](https://github.com/fox32-arch) emulator written in c3
 
 > [!NOTE]
 > It is recommended to build in a nix environment:
@@ -11,7 +11,8 @@
 - [x] Fix that `0x04000000` bug (so painful :()
 - [x] Initial Gui
 - [ ] Gui overlays
-- [ ] Interrupts
+- [ ] I/O stuff: mounting disks, mouse, rtc, etc
+- [ ] Interrupts: vblank, moving the mouse
 - [ ] Any other things I can think of
 - [ ] MMU (maybe, only used by [minita](https://github.com/xrarch/mintia))
 
