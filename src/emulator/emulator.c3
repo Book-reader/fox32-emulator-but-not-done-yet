@@ -224,7 +224,7 @@ fn int main(String[] args)
 
 
 	$if $feature(PERF):
-		uint iteration = 0;
+		uint iterations = 0;
 		Clock clock = clock::now();
 	$endif
 
@@ -254,49 +254,23 @@ fn int main(String[] args)
 				nextcase;
 			case inst::GET_:
 				$if $feature(PERF):
-					iteration += 1;
-					if ((iteration % 50000000) == 0)
+					iterations ++;
+					if (iterations % 30000000 == 0)
 					{
-		//				running = false; //1000000000
-						NanoDuration nano_seconds = clock.mark(); 
-						logger::info("\nTook %s or %s ns to do %s iterations, %dMhz", nano_seconds, @as(long, nano_seconds), iteration, (@as(double, iteration) /	nano_seconds.to_sec() / 1000000).round() );
-						// thread::sleep(time::sec(1));
-						iteration = 0;
+						NanoDuration t = clock.mark();
+						logger::info("%s cycles took %s (%s)", iterations, t, t.to_sec() <= 1 ? "good" : "bad");
+						iterations = 0;
 						clock = clock::now();
-						// continue;
 					}
-		//			if (iteration % 5000000 == 0) io::printfn("CPU Cycle: %s", iteration);
 				$endif
 				logger::debug("Nearby mem: %s", cpu.mem_get(*cpu.inst_ptr, 10));
 				
 				inst = (Instruction)cpu.mem_get(*cpu.inst_ptr, 2).get(W16);
 
 				logger::debug("%s 0x%.8x -> %s", cpu.cycles, *cpu.inst_ptr, inst);
-				// if ((*cpu.inst_ptr >= 0xf0000765 - 20u && *cpu.inst_ptr <= 0xf0000765 + 20u) || (inst.type == inst::CMP && inst.width == W8 && inst.dst == REG_PTR)) logger::info("%s 0x%.8x -> %s", cpu.cycles, *cpu.inst_ptr, inst);
-				// logger::info("%s 0x%.8x -> %s", cpu.cycles, *cpu.inst_ptr, inst);
-				// try 0xf0000b8e next
-				// if (*cpu.inst_ptr == 0xf0000749/*0xf0000b8e*//*0xf0000626*/) cpu.error("called the evil thingy");
-				// logger::info("%s 0x%.8x -> %s", cpu.cycles, *cpu.inst_ptr, inst);
 
 				// Point at the next byte
 				cpu.inst_ptr_next = *cpu.inst_ptr + common::INST_SIZE;
-
-				/*$if $feature(DEBUG):
-					@each_width(inst.width; BitWidth $width)
-					{
-						uint tmp = cpu.inst_ptr_next;
-						$for var $type = 0; $type < char.max; $type++:
-							$if inst::is_valid_instruction($type):
-								if (inst.type == $type)
-								{
-									cpu.move_forward($width, $type, inst);
-									logger::debug("Next instruction at %.8x : %s", cpu.inst_ptr_next, (Instruction)cpu.mem_get(cpu.inst_ptr_next, 2).get(W16));
-								}
-							$endif
-						$endfor
-						cpu.inst_ptr_next = tmp;
-					};
-				$endif*/
 
 				// Execute the current instruction
 				nextcase inst.type;
@@ -398,17 +372,14 @@ fn int main(String[] args)
 			case inst::OR:
 				cpu.inst_or(inst);
 				nextcase inst::GET;
+			case inst::AND:
+				cpu.inst_and(inst);
+				nextcase inst::GET;
 			default:
 				cpu.error("Instruction %s is not implemented yet", inst.type.get_name());
 				nextcase inst::BREAK;
 		}
 	}
-	$if $feature(PERF):
-		NanoDuration nano_seconds = clock.mark(); 
-		io::printfn("Took %s or %s ns to do %s iterations, %dMhz", nano_seconds, @as(long, nano_seconds), iteration, (@as(double, iteration) /	nano_seconds.to_sec() / 1000000).round() );
-	$endif
-
-	// return 0;
 }
 
 // NOTE: #src and #dst are FUNCTIONS that will be called EVERY TIME they are used
@@ -515,7 +486,7 @@ fn void Cpu.inst_movz(&self, Instruction inst) @inline => self.@setup_w(inst; Bi
 	// TODO: this might not actually work because W32 is also used for offset calculation which could break things
 	// self.set_val(W32, inst, DST, (uint)#src);
 	uint offset = @arg_offset($width, inst, @inst_type(), DST);
-	io::printfn("Moving %.8x", src);
+	// io::printfn("Moving %.8x", src);
 	switch (inst.dst)
 	{
 		case REG:
@@ -565,7 +536,7 @@ fn void Cpu.inst_out(&self, Instruction inst) @inline => self.@setup_w(inst; Bit
 	}
 	else
 	{
-		putchar((CInt)#src) @inline;
+		putchar((CInt)#src);
 	}
 }
 
@@ -577,7 +548,16 @@ fn void Cpu.inst_in(&self, Instruction inst) @inline => self.@setup_w(inst; BitW
 	// $typefrom($width.type) dst = #dst;
 	// $typefrom($width.type) src = #src;
 	// if (dst != 0) self.error("You can't do that");
-	logger::warn("In is not implemented yet");
+	$typefrom($width.type) src = #src;
+
+	if (src != 0)
+	{
+		logger::warn("In from not stdin is not supported yet: 0x%.8x", src);
+	}
+	else
+	{
+		self.set_val($width, inst, DST, ($typefrom($width.type))(io::stdin().read_byte()!!));
+	}
 }
 
 fn void Cpu.inst_call(&self, Instruction inst) @inline => self.@setup(inst, W32, false; #src, #dst)
@@ -662,6 +642,14 @@ fn void Cpu.inst_or(&self, Instruction inst) @inline => self.@setup_w(inst; BitW
 	self.flags.zero = res == 0;
 }
 
+fn void Cpu.inst_and(&self, Instruction inst) @inline => self.@setup_w(inst; BitWidth $width, #src, #dst)
+{
+	$typefrom($width.type) res = #dst & #src;
+	self.set_val($width, inst, DST, res);
+	self.flags.zero = res == 0;
+}
+
+
 macro bool Cpu.should_execute(&self, Instruction inst)
 {
 	// TODO: @jump?
@@ -717,7 +705,7 @@ macro Cpu.@setup(&self, Instruction inst, BitWidth $width, bool $move = true; @b
 	String $inst_name = @inst_name();
 	InstructionType $type = @inst_type();
 	// TODO: guard behind some sort of if condition
-	self.print_instr(inst, $width, $type, $inst_name);
+	// self.print_instr(inst, $width, $type, $inst_name);
 	if (self.should_execute(inst))
 	{
 		self.@args(inst, $inst_name, $type, $width; #src, #dst)
@@ -771,7 +759,7 @@ macro no_param(String $inst_name, ArgPos $pos) { $error("Instruction " +++ $inst
 macro Cpu.set_val(&self, BitWidth $width, Instruction inst, ArgPos $arg, val, InstructionType $inst_type = @inst_type())
 {
 	uint offset = @arg_offset($width, inst, $inst_type, $arg);
-	io::printfn("Moving %.8x", val);
+	// io::printfn("Moving %.8x", val);
 	// logger::debug("Current idx is %s, calculated offset is %s", self.inst_ptr_next, offset);
 	switch (inst.$eval($arg.name))
 	{
