@@ -9,17 +9,19 @@
 > $ nix develop --impure
 > ```
 
-usage:
-```
-c3c build -O5 emulator
-./build/emulator <input file> <cpu cycles before shutdown (optional)>
-```
-```
-c3c build -O5 assembler (doesn't compile and probably wont ever again)
-./build/assembler <input file> <output file>
+### building:
+
+```console
+$ c3c build emulator <-D build flag> -O5
 ```
 
-can also be ran as:
+#### build flags:
+ - DEBUG -> print almost too many debug logs
+ - PERF -> print the time taken to execute 30M instructions (target <= 1 second for 30Mhz)
+ - SHUTUP -> silence runtime warnings, mostly unimplemented methods
+
+### usage:
+
+```console
+$ ./build/emulator <input file> <cpu cycles before shutdown (optional)>
 ```
-c3c run emulator -- <args>
-``
