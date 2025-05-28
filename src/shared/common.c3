@@ -57,36 +57,48 @@ fn usz? Instruction.to_format(&self, Formatter* formatter) @dynamic
 	}
 	return n;
 }
+/*
+SP=01FFF800 IP=F0000009        WORD MOV   IMM    80000600, REG    R0      
+SP=01FFF800 IP=F0000010        WORD OUT   IMM    00000000, REG    R0      
+SP=01FFF800 IP=F0000017        WORD MOV   IMM    F004F000, REG    R0      
+SP=01FFF800 IP=F000001E        WORD CALL  IMM    F0000BA5
+SP=01FFF7FC IP=F0000BA5        WORD MOV   REG    R0      , IMMPTR 0215618A
+SP=01FFF7FC IP=F0000BAC        WORD RET  
+SP=01FFF800 IP=F0000024        WORD MOV   IMM    F0000044, IMMPTR 000003FC
+SP=01FFF800 IP=F000002E        WORD ISE  
+SP=01FFF800 IP=F0000030        WORD MOV   IMM    811C9DC5, REG    R0      
+SP=01FFF800 IP=F0000037        WORD MUL   IMM    01000193, REG    R0      
+*/ //							   HALF, BYTE
 
 // typedef Condition = char;
 
-enum Condition : char
+enum Condition : char (String name)
 {
-	ALWAYS,
-	IFZ,
-	IFNZ,
-	IFC, // same as: IFLT
-	IFNC, // same as: IFGTEQ
-	IFGT,
-	IFLTEQ,
+	ALWAYS = "",
+	IFZ = "IFZ",
+	IFNZ = "IFNZ",
+	IFC = "IFC", // same as: IFLT
+	IFNC = "IFNC", // same as: IFGTEQ
+	IFGT = "IFGT",
+	IFLTEQ = "IFLTEQ",
 }
 
-enum ArgType : char
+enum ArgType : char (String fox32name)
 {
-	REG,
-	REG_PTR,
-	IMM,
-	IMM_PTR,
+	REG = "REG   ",
+	REG_PTR = "REGPTR",
+	IMM = "IMM   ",
+	IMM_PTR = "IMMPTR",
 }
 
 typedef InstructionType = char;
 
-enum BitWidth : char (String suffix, inline ulong size, typeid type, typeid itype)
+enum BitWidth : char (String suffix, inline uint size, typeid type, typeid itype, String name)
 {
 //  NONE = { "", 0, void.typeid },
-  W8 = { ".8", 1, char.typeid, ichar.typeid },
-  W16 = { ".16", 2, ushort.typeid, short.typeid },
-  W32 = { ".32", 4, uint.typeid, int.typeid },
+  W8 = { ".8", 1, char.typeid, ichar.typeid, "BYTE" },
+  W16 = { ".16", 2, ushort.typeid, short.typeid, "HALF" },
+  W32 = { ".32", 4, uint.typeid, int.typeid, "WORD" },
 }
 
 alias Bytes = List {char};
@@ -327,7 +339,7 @@ macro InstructionType.arg_count($self) @const
 	$endswitch
 }
 
-// bit ops like bsl always have W8 sources because you don't need to shift the max of 32 bits by more than the 255 of W8 so allowing W16/32 would be pointless&wasteful
+// bit shifting ops like bsl always have W8 sources because you don't need to shift the max of 32 bits by more than the 255 of W8 so allowing W16/32 would be pointless&wasteful
 macro bool InstructionType.is_bit_op($self) @const
 {
 	$switch $self:
