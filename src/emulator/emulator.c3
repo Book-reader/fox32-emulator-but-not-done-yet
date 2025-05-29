@@ -122,27 +122,33 @@ fn char[] Cpu.mem_get(&self, uint start, uint len)
 // downside: need to dereference to get it, may negate performance benefit, will need to check eventually
 macro Cpu.print_instr(&self, Instruction inst, BitWidth $width, InstructionType $type, String $inst_name) => @pool()
 {
+	// static char[256] buf;
 	DString str;
-	str.tinit();
-	str.appendf("SP=%.8X IP=%.8X %-6s %s %-5s", *self.stack_ptr, *self.inst_ptr, inst.cond.name, $width.name, $inst_name);
+	// str.init(allocator::wrap(&buf));
+	/*str.appendf*/io::printf("SP=%.8X IP=%.8X %-6s %s %-5s ", *self.stack_ptr, *self.inst_ptr, inst.cond.name, $width.name, $inst_name);
 	$switch $type.arg_count():
 		$case 0:
 			// TODO: feature request $break (check if exists first)
 			0;
 		$case 1:
-			str.appendf(" %s", inst.src.fox32name);
+			// str.appendf(" %s", inst.src.fox32name);
+			io::print(inst.src.fox32name);
 			// TODO: report poor error messages when `@body(#src, #dst)` instead
 			self.print_arg(&str, inst, $type, $width, SRC);
 		$case 2:
-			str.appendf(" %s", inst.src.fox32name);
+			// str.appendf(" %s", inst.src.fox32name);
+			io::print(inst.src.fox32name);
 			self.print_arg(&str, inst, $type, $width, SRC);
-			str.appendf(",");
-			str.appendf(" %s", inst.dst.fox32name);
+			// str.appendf(",");
+			io::print(", ");
+			// str.appendf(" %s", inst.dst.fox32name);
+			io::print(inst.dst.fox32name);
 			self.print_arg(&str, inst, $type, $width, DST);
 		$default:
 			$error("a");
 	$endswitch
-	io::printfn(str.str_view());
+	io::printn();
+	//io::printn(str.str_view());
 }
 
 macro Cpu.print_arg(&self, DString* str, Instruction inst, InstructionType $inst_type, BitWidth $width, ArgPos $arg)
@@ -153,10 +159,12 @@ macro Cpu.print_arg(&self, DString* str, Instruction inst, InstructionType $inst
 	{
 		case REG:
 		case REG_PTR:
-			str.appendf(" %-8s", common::REG_NAMES[self.mem_get(self.inst_ptr_next + offset, 1).get(W8)]);
+			// str.appendf(" %-8s", common::REG_NAMES[self.mem_get(self.inst_ptr_next + offset, 1).get(W8)]);
+			io::printf(" %-8s", common::REG_NAMES[self.mem_get(self.inst_ptr_next + offset, 1).get(W8)]);
 		case IMM:
 		case IMM_PTR:
-			str.appendf(" %.8X", self.mem_get(self.inst_ptr_next + offset, common::PTR_SIZE).get($width));
+			//str.appendf(" %.8X", self.mem_get(self.inst_ptr_next + offset, common::PTR_SIZE).get($width));
+			io::printf(" %.8X", self.mem_get(self.inst_ptr_next + offset, common::PTR_SIZE).get($width));
 	}
 }
 
@@ -206,11 +214,11 @@ macro Cpu.error(&self, String fmt, ...)
 	@body(#self._cpu);
 }*/
 //UnbufferedChannel{bool} gui_upd;
-// UnbufferedChannel{bool} gui_done;
+UnbufferedChannel{bool} gui_init;
 Cpu cpu;
 
 
-struct ThreadData {Cpu* cpu; bool* running;}
+struct ThreadData {Cpu* cpu; bool* running; UnbufferedChannel{bool} gui_init;}
 // TODO: make all get instructions return a char[] so I can just do 'get_arg1()[:len] = get_arg2()[:len]' instead of all the bitmasks and switch statements and macros
 // it will make memory to memory operations faster & I can have a reg->reg version as well
 fn int main(String[] args)
@@ -219,6 +227,8 @@ fn int main(String[] args)
 	cpu.init();
 	defer cpu.deinit();
 
+	gui_init.init(mem)!!;
+	defer (void)gui_init.destroy();
 /*	gui_upd.init(mem)!!;
 	defer (void)gui_upd.destroy();
 	gui_done.init(mem)!!;
@@ -232,11 +242,12 @@ fn int main(String[] args)
 		running = false;
 		(void)gui_thread.join();
 	}
-	if (catch gui_thread.create(&gui::run_gui, &&(ThreadData){&cpu, &running}))
+	if (catch gui_thread.create(&gui::run_gui, &&(ThreadData){&cpu, &running, gui_init}))
 	{
 		logger::error("Failed to create gui thread!");
 		return 1;
 	}
+	gui_init.pop()!!;
 
 	char[] prog;
 
@@ -297,7 +308,7 @@ fn int main(String[] args)
 				}
 				// TODO: set a clock speed
 				$if $feature(DELAY):
-					thread::sleep(1000000);
+					thread::sleep(((NanoDuration)1000).to_duration());
 				$endif
 				*cpu.inst_ptr = cpu.inst_ptr_next;
 
@@ -394,6 +405,9 @@ fn int main(String[] args)
 			case inst::CALL:
 				cpu.inst_call(inst);
 				nextcase inst::GET;
+			case inst::RCALL:
+				cpu.inst_rcall(inst);
+				nextcase inst::GET;
 			case inst::RET:
 				cpu.inst_ret(inst);
 				nextcase inst::GET;
@@ -418,6 +432,9 @@ fn int main(String[] args)
 				nextcase inst::GET;
 			case inst::SRA:
 				cpu.inst_sra(inst);
+				nextcase inst::GET;
+			case inst::SRL:
+				cpu.inst_srl(inst);
 				nextcase inst::GET;
 			case inst::OR:
 				cpu.inst_or(inst);
@@ -618,16 +635,6 @@ fn void Cpu.inst_in(&self, Instruction inst) @inline => self.@setup_w(inst; BitW
 
 fn void Cpu.inst_call(&self, Instruction inst) @inline => self.@setup(inst, W32, false; #src, #dst)
 {
-	/*if (*self.inst_ptr >= 0xf0000757 - 2u && *self.inst_ptr <= 0xf0000757 + 2u)
-	{
-		logger::info("---------------------------------");
-	io::eprintfn("[INFO] At cycle %s", self.cycles);
-	io::eprintfn("[INFO] At instruction %.8x -> %s", *self.inst_ptr, (Instruction)self.mem_get(*self.inst_ptr, 2).get(W16));
-		foreach (i, reg : self.regs)
-		{
-			logger::info("%s: %.8x", common::REG_NAMES[i], reg);
-		}
-	}*/
 	// save the value before moving forward so I can push the right value and jmp to the right value
 	uint src = #src;
 	self.move_forward(W32, inst::CALL, inst);
@@ -636,6 +643,19 @@ fn void Cpu.inst_call(&self, Instruction inst) @inline => self.@setup(inst, W32,
 	logger::debug("Calling 0x%.8x", src);
 	self.inst_ptr_next = src;
 }
+
+fn void Cpu.inst_rcall(&self, Instruction inst) @inline => self.@setup_w(inst, false; BitWidth $width, #src, #dst)
+{
+	self.error("Rcall not implemented yet :3");
+	// save the value before moving forward so I can push the right value and jmp to the right value
+	$typefrom($width.itype) src = #src;
+	self.move_forward($width, inst::RCALL, inst);
+	// logger::info("Calling %.8x at %s", src, self.cycles);
+	self._push(W32, self.inst_ptr_next, false);
+	logger::debug("Calling 0x%.8x", src);
+	self.inst_ptr_next = *self.inst_ptr + src;
+}
+
 
 fn void Cpu.inst_ret(&self, Instruction inst) @inline => self.@setup(inst, W32, false; #src, #dst)
 {
@@ -685,9 +705,17 @@ fn void Cpu.inst_sla(&self, Instruction inst) @inline => self.@setup_w(inst; Bit
 
 fn void Cpu.inst_sra(&self, Instruction inst) @inline => self.@setup_w(inst; BitWidth $width, #src, #dst)
 {
-	// TODO: 'macro bool Instruction.is_signed($self)' to do this automatically
+	// TODO: 'macro bool Instruction.is_arg_signed($self, ArgPos)' to do this automatically
 	$typefrom($width.itype) res = ($typefrom($width.itype))#dst >> ($typefrom($width.itype))#src;
 	self.set_val($width, inst, DST, ($typefrom($width.type))res);
+	self.flags.zero = res == 0;
+}
+
+fn void Cpu.inst_srl(&self, Instruction inst) @inline => self.@setup_w(inst; BitWidth $width, #src, #dst)
+{
+	// TODO: 'macro bool Instruction.is_signed($self)' to do this automatically
+	$typefrom($width.type) res = #dst >> #src;
+	self.set_val($width, inst, DST, res);
 	self.flags.zero = res == 0;
 }
 

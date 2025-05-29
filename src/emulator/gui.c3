@@ -26,6 +26,8 @@ fn int run_gui(void* arg) => @pool_init(mem, 4096, allocator::temp_allocator_buf
 
 	Texture2D tex = rl::loadTextureFromImage(img);
 
+	((ThreadData*)arg).gui_init.push(true)!!;
+
 	while (*running && !rl::windowShouldClose())
 	{
 		rl::beginDrawing();
