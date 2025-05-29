@@ -9,10 +9,14 @@
 ## todo:
 
 - [x] Fix that `0x04000000` bug (so painful :()
-- [x] Initial Gui
-- [ ] Gui overlays
+- [x] Run fox32rom successfully
+- [x] Initial Gui & see fox32rom framebuffer
+- [ ] Implement Gui overlays
 - [ ] I/O stuff: mounting disks, mouse, rtc, etc
 - [ ] Interrupts: vblank, moving the mouse
+- [ ] Get fox32rom functioning completely
+- [ ] Get fox32os functioning completely
+- [ ] Implement all instructions fully
 - [ ] Any other things I can think of
 - [ ] MMU (maybe, only used by [minita](https://github.com/xrarch/mintia))
 
