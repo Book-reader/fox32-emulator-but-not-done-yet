@@ -43,7 +43,7 @@ fn int run_gui(void* arg) => @pool_init(mem, 4096, allocator::temp_allocator_buf
 		// signal that it's done. needs to be done after the drawing ends to be able to tell the main loop if it has exited
 		// defer emulator::gui_done.push(!rl::windowShouldClose())!!;
 	}
-	*running = false;
 	logger::error("Gui closed, exiting");
+	*running = false;
 	return 0;
 }
