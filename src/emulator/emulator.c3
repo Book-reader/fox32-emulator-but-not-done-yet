@@ -611,25 +611,21 @@ extern fn CInt putchar(CInt c);
 fn void Cpu.inst_out(&self, Instruction inst) @inline => self.@setup(inst, W32; #src, #dst)
 {
 	uint dst = #dst;
-	// uint src = #src;
 
+	// Framebuffer overlays
 	if (dst >= 0x80000000 && dst <= 0x8000031f)
 	{
 		OverlayAddr opt = (OverlayAddr)dst;
 		DisplayOverlay* over = &self.overlays[opt.idx];
 		over.changed = true;
-		// logger::info("Got overlay command: %.8x, %s:%s, src = %.8x", dst, opt.idx, opt.type, #src);
 		switch (opt.type)
 		{
 			case POSITION:
 				SplitInt val = (SplitInt)#src;
-				// logger::info("setting overlay %s position to x:%s, y:%s", opt.idx, val.first, val.second);
 				over.pos.x = val.first;
 				over.pos.y = val.second;
-				// self.set_val($width, inst, SRC, (uint)());
 			case SIZE:
 				SplitInt val = (SplitInt)#src;
-				// logger::info("setting overlay %s size to w:%s, h:%s", opt.idx, val.first, val.second);
 				over.size.x = val.first;
 				over.size.y = val.second;
 			case FB_PTR:
@@ -637,8 +633,8 @@ fn void Cpu.inst_out(&self, Instruction inst) @inline => self.@setup(inst, W32; 
 			case ENABLE:
 				over.enable = #src != 0;
 		}
-		// self.error("nope :3");
 	}
+	// Serial port. I'm pretty sure this isn't actually how serial works but ¯\_(ツ)_/¯
 	else if (dst == 0)
 	{
 		putchar((CInt)#src);

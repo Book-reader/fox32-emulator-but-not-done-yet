@@ -6,6 +6,10 @@
 > $ nix develop --impure
 > ```
 
+> [!WARNING]
+> Don't expect the code to be of great quality for now.
+> I'll clean it up later
+
 ## todo:
 
 - [x] Fix that `0x04000000` bug (so painful :()
