@@ -11,9 +11,10 @@
 - [x] Fix that `0x04000000` bug (so painful :()
 - [x] Run fox32rom successfully
 - [x] Initial Gui & see fox32rom framebuffer
-- [ ] Implement Gui overlays
+- [x] Implement Gui overlays
 - [ ] I/O stuff: mounting disks, mouse, rtc, etc
 - [ ] Interrupts: vblank, moving the mouse
+- [ ] Exceptions
 - [ ] Get fox32rom functioning completely
 - [ ] Get fox32os functioning completely
 - [ ] Implement all instructions fully

@@ -43,20 +43,35 @@ bitstruct CpuFlags : char
 }
 
 
-/*struct FrameBuffer
+struct DisplayOverlay
 {
-	char[640*480*4]* data;
+	uint[<2>] pos;
+	uint[<2>] size;
+	uint fb_ptr;
+	bool enable;
+	// to indicate whether rl::updateTextureRec needs to be called to regenerate the texture
+	bool changed;
 }
 
-fn void FrameBuffer.init(&self)
+bitstruct OverlayAddr : uint @littleendian
 {
-	self.data = mem::new_array(char, 640*480*4);
+	char idx : 0..7;
+	OverlayOption type : 8..15;
 }
 
-fn void FrameBuffer.free(&self)
+bitstruct SplitInt : uint @littleendian
 {
-	mem::free(self.data);
-}*/
+	uint first : 0..15;
+	uint second : 16..31;
+}
+
+enum OverlayOption : char
+{
+	POSITION,
+	SIZE,
+	FB_PTR,
+	ENABLE,
+}
 
 struct Cpu
 {
@@ -74,7 +89,7 @@ struct Cpu
 	usz cycles;
 	char[] ram;
 	char[] rom;
-//	FrameBuffer fb;
+	DisplayOverlay[common::NUM_OVERLAYS] overlays;
 }
 
 <*
@@ -593,14 +608,36 @@ fn void Cpu.inst_rjmp(&self, Instruction inst) @inline => self.@setup_w(inst, fa
 extern fn CInt putchar(CInt c);
 
 // TODO: match https://github.com/fox32-arch/fox32/blob/main/src/bus.c#L164
-fn void Cpu.inst_out(&self, Instruction inst) @inline => self.@setup_w(inst; BitWidth $width, #src, #dst)
+fn void Cpu.inst_out(&self, Instruction inst) @inline => self.@setup(inst, W32; #src, #dst)
 {
-	$typefrom($width.type) dst = #dst;
+	uint dst = #dst;
+	// uint src = #src;
 
-	if (dst >= 0x02000000 && dst <= 0x02000000 + (640*480*4))
+	if (dst >= 0x80000000 && dst <= 0x8000031f)
 	{
-		logger::panic("test: Writing %.8x into framebuffer at %.8x");
-		// ((char[])self.fb.data)[dst - 0x02000000:$width].set($width, #src);
+		OverlayAddr opt = (OverlayAddr)dst;
+		DisplayOverlay* over = &self.overlays[opt.idx];
+		over.changed = true;
+		// logger::info("Got overlay command: %.8x, %s:%s, src = %.8x", dst, opt.idx, opt.type, #src);
+		switch (opt.type)
+		{
+			case POSITION:
+				SplitInt val = (SplitInt)#src;
+				// logger::info("setting overlay %s position to x:%s, y:%s", opt.idx, val.first, val.second);
+				over.pos.x = val.first;
+				over.pos.y = val.second;
+				// self.set_val($width, inst, SRC, (uint)());
+			case SIZE:
+				SplitInt val = (SplitInt)#src;
+				// logger::info("setting overlay %s size to w:%s, h:%s", opt.idx, val.first, val.second);
+				over.size.x = val.first;
+				over.size.y = val.second;
+			case FB_PTR:
+				over.fb_ptr = #src;
+			case ENABLE:
+				over.enable = #src != 0;
+		}
+		// self.error("nope :3");
 	}
 	else if (dst == 0)
 	{
@@ -811,6 +848,25 @@ macro Cpu.@setup(&self, Instruction inst, BitWidth $width, bool $move = true; @b
 	$endif
 }
 
+// TODO: have #src and #dst be both getters and setters, so you can do #dst.set(#src.get() + #dst.get()) (ofc storing #dst first)
+// this would allow me to optimisze mem->mem movs so I won't need to contantly cast between char[] and uint.
+// something like this:
+/*
+	<*
+		@require $typeof(val) == Register* ||| ($typeof(val) == char[] && val.len == $width)
+	*>
+	macro Register.set(&self, BitWidth $width, val)
+	{
+		$if $typeof(val) == char[]:
+			self = val.to_$width();
+		$else
+			self = val;
+		$endif
+	}
+	macro Register.get(self, BitWidth $width, bool $signed = false)
+*/
+// and it would be the same for char[].set(), and then typeof(#src and #dst) could just be Register* or char[] and I won't need both get_value and set_value
+// it could also result in increased performance if done correctly for mem->mem and reg->reg bc no char[]->int->char[] conversions or double bitmasking along the way
 macro Cpu.@args(&self, Instruction inst, String $inst_name, InstructionType $type, BitWidth $width; @body(#src, #dst))
 {
 	$switch $type.arg_count():
@@ -837,6 +893,7 @@ macro Cpu.@args(&self, Instruction inst, String $inst_name, InstructionType $typ
 
 // only to be used in the above Cpu.@args
 macro no_param(String $inst_name, ArgPos $pos) { $error("Instruction " +++ $inst_name +++ " does not have parameter " +++ $pos.name); }
+
 
 <*
 	@require $typeof(val).typeid == $width.type

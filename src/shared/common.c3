@@ -16,6 +16,11 @@ const ROM_START = 0xF0000000;
 const DEFAULT_INST_PTR = ROM_START;
 const DEFAULT_STACK_PTR = 0;
 
+const uint[<2>] DISP_SIZE = {640, 480};
+const NUM_OVERLAYS = 32;
+const BG_FB = 0x02000000;
+const BG_FB_SIZE = DISP_SIZE.x*DISP_SIZE.y*4;
+
 // 8 General registers
 const NUM_REGISTERS = 36;
 const String[NUM_REGISTERS] REG_NAMES = {
