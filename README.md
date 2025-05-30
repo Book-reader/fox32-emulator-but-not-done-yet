@@ -28,7 +28,7 @@
 ## building:
 
 ```console
-$ c3c build emulator -D <build flag> -O5
+$ c3c build -D <build flag> -O5
 ```
 
 ### build flags:
@@ -40,5 +40,5 @@ $ c3c build emulator -D <build flag> -O5
 ## usage:
 
 ```console
-$ ./build/emulator <boot rom> <cpu cycles before shutdown (optional)>
+$ ./build/fox33 <boot rom> <cpu cycles before shutdown (optional)>
 ```

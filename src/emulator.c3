@@ -15,24 +15,27 @@ alias Register = uint;
 
 macro Register.write(&self, BitWidth $width, data)
 {
-	logger::debug("Writing %s (0x%x) as %s", data, data, $width);
-	self.$eval("write_" +++ $width.nameof)(data);
-	logger::debug("Self is now %s (0x%x)", *self, *self);
+	$switch $width:
+	$case W8:
+		*self = (*self & ~0x000000ff) | @as(uint, data);
+	$case W16:
+		*self = (*self & ~0x0000ffff) | @as(uint, data);
+	$case W32:
+		*self = data;
+	$endswitch
 }
 
-fn void Register.write_W8(&self, char data) => *self = (*self & ~0x000000ff) | @as(uint, data);
-
-fn void Register.write_W16(&self, ushort data) => *self = (*self & ~0x0000ffff) | @as(uint, data);
-
-fn void Register.write_W32(&self, uint data) => *self = data;
-
-macro Register.read(&self, BitWidth $width) => self.$eval("read_" +++ $width.nameof)();
-
-fn char Register.read_W8(self) => @as(char, self & 0x000000ff);
-
-fn ushort Register.read_W16(self) => @as(ushort, self & 0x0000ffff);
-
-fn uint Register.read_W32(self) => self;
+macro Register.read(self, BitWidth $width)
+{
+	$switch $width:
+	$case W8:
+		return @as(char, self & 0x000000ff);
+	$case W16:
+		return @as(ushort, self & 0x0000ffff);
+	$case W32:
+		return self;
+	$endswitch
+}
 
 bitstruct CpuFlags : char
 {
@@ -41,7 +44,6 @@ bitstruct CpuFlags : char
 	bool interrupt : 3;
 	bool exception_sp : 2;
 }
-
 
 struct DisplayOverlay
 {

@@ -12,7 +12,7 @@
   // Version using semantic versioning.
   "version": "0.1.0",
   // Sources compiled for all targets.
-  "sources": [ "src/shared/**" ],
+  "sources": [ "src/**" ],
   // Test sources compiled for all targets.
   // C sources if the project also compiles C sources
   // relative to the project file.
@@ -27,26 +27,8 @@
   "features": [],
   // Targets.
   "targets": {
-    "none": {
+    "fox33": {
       "type": "executable"
-    },
-    "emulator": {
-      // Executable or library.
-      "type": "executable",
-      "sources": ["src/emulator/**"],
-      "test-sources": [ "test/emulator/**" ],
-
-//      "features": ["EMULATOR"],
-      // Additional libraries, sources
-      // and overrides of global settings here.
-    },
-    "assembler": {
-      // Executable or library.
-      "type": "executable",
-      "sources": [ "src/assembler/**" ],
-//      "features": ["ASSEMBLER"],
-      // Additional libraries, sources
-      // and overrides of global settings here.
     },
   },
   // Global settings.
