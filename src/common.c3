@@ -62,20 +62,6 @@ fn usz? Instruction.to_format(&self, Formatter* formatter) @dynamic
 	}
 	return n;
 }
-/*
-SP=01FFF800 IP=F0000009        WORD MOV   IMM    80000600, REG    R0      
-SP=01FFF800 IP=F0000010        WORD OUT   IMM    00000000, REG    R0      
-SP=01FFF800 IP=F0000017        WORD MOV   IMM    F004F000, REG    R0      
-SP=01FFF800 IP=F000001E        WORD CALL  IMM    F0000BA5
-SP=01FFF7FC IP=F0000BA5        WORD MOV   REG    R0      , IMMPTR 0215618A
-SP=01FFF7FC IP=F0000BAC        WORD RET  
-SP=01FFF800 IP=F0000024        WORD MOV   IMM    F0000044, IMMPTR 000003FC
-SP=01FFF800 IP=F000002E        WORD ISE  
-SP=01FFF800 IP=F0000030        WORD MOV   IMM    811C9DC5, REG    R0      
-SP=01FFF800 IP=F0000037        WORD MUL   IMM    01000193, REG    R0      
-*/ //							   HALF, BYTE
-
-// typedef Condition = char;
 
 enum Condition : char (String name)
 {
@@ -106,101 +92,8 @@ enum BitWidth : char (String suffix, inline uint size, typeid type, typeid itype
   W32 = { ".32", 4, uint.typeid, int.typeid, "WORD" },
 }
 
-alias Bytes = List {char};
-
-
-// enum ParseArgType ()
-
-struct Token(Printable)
-{
-  TokenType type;
-  String lexme;
-  usz line;
-  usz position;
-}
-
-fn usz? Token.to_format(&self, Formatter* formatter) @dynamic
-{
-  return formatter.printf("(%s:%s ('%s':%s))%s", self.line, self.position, self.lexme == "\n" ? "\\n" : self.lexme, self.type, self.type == EOEXPR ? "\n" : "");
-}
-
-enum TokenType : char
-{
-  STRING,
-  CHAR,
-  NUMBER,
-  INSTRUCTION,
-  REGISTER,
-  LABEL,
-  ARG_SEP,
-  LABEL_DECL,
-  EOEXPR,
-}
-
-macro to_string($num) {
-  char[] $res;
-  $for ;$num != 0; $num = $num / 10:
-    $res = { (char) ('0' + $num % 10) } +++ $res;
-  $endfor
-  return (String) $res;
-}
-
-fn bool String[].contains(&self, String pointer)
-{
-	return @ok(self.index_of(pointer));
-}
-
-fn usz? String[].index_of(&self, String pointer)
-{
-	foreach (i, val : self)
-	{
-		if (val == pointer) return i;
-	}
-	return NOT_FOUND?;
-}
-
-
 // We have zig at home:
 macro @as($Type, #expr) @builtin => ($Type)(#expr);
-
-macro @eachif(value, $Enum = void, #attribute = null; @body($matching_value)) @builtin
-{
-  $if $Enum.typeid == void.typeid:
-    $Enum = $typeof(value);
-  $endif
-
-  return @eachif_arr(value, $Enum.values, #attribute, false; $match)
-  {
-    @body($match);
-  };
-
-}
-
-macro @eachif_arr(value, $values, #attribute = null, $failable = true; @body($matching_value)) @builtin
-{
-  $foreach $value : $values:
-    var $val_at;
-    $if $stringify(#attribute) == "null":
-      $val_at = $value;
-    $else
-      $val_at = $value.#attribute;
-    $endif
-//    logger::debug("comparing c:%s to r:%s", $val_at, value);
-    if ($val_at == value)
-    {
-//      logger::debug("c:%s and r:%s match", $val_at, value);
-      @body($value);
-      return;
-    }
-  $endforeach
-
-
-  $if $stringify(#attribute) == "null" ||| $failable:
-    unreachable();
-  $else
-    return SearchResult.MISSING?;
-  $endif
-}
 
 
 <*

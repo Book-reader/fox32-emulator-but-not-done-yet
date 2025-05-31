@@ -23,7 +23,6 @@
 - [ ] Get fox32os functioning completely
 - [ ] Implement all instructions fully
 - [ ] Any other things I can think of
-- [ ] MMU (maybe, only used by [minita](https://github.com/xrarch/mintia))
 
 ## building:
 
