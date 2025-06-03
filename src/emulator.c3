@@ -389,44 +389,44 @@ fn int main(String[] args)
 				return 0;
 
 			case inst::INC:
-				cpu.@wrap(inst_inc, inst);
+				cpu.inst_inc(inst);
 				nextcase inst::GET;
 			case inst::DEC:
-				cpu.@wrap(inst_dec, inst);
+				cpu.inst_dec(inst);
 				nextcase inst::GET;
 			case inst::ADD:
-				cpu.@wrap(inst_add, inst);
+				cpu.inst_add(inst);
 				nextcase inst::GET;
 			case inst::SUB:
-				cpu.@wrap(inst_sub, inst);
+				cpu.inst_sub(inst);
 				nextcase inst::GET;
 			case inst::MUL:
-				cpu.@wrap(inst_mul, inst);
+				cpu.inst_mul(inst);
 				nextcase inst::GET;
 			case inst::DIV:
-				cpu.@wrap(inst_div, inst);
+				cpu.inst_div(inst);
 				nextcase inst::GET;
 			case inst::REM:
-				cpu.@wrap(inst_rem, inst);
+				cpu.inst_rem(inst);
 				nextcase inst::GET;
 			case inst::IREM:
-				cpu.@wrap(inst_irem, inst);
+				cpu.inst_irem(inst);
 				nextcase inst::GET;
 			case inst::MOV:
-				cpu.@wrap(inst_mov, inst);
+				cpu.inst_mov(inst);
 				nextcase inst::GET;
 			case inst::MOVZ:
 				// TODO: merge with inst_mov using generic
-				cpu.@wrap(inst_movz, inst);
+				cpu.inst_movz(inst);
 				nextcase inst::GET;
 			case inst::CMP:
-				cpu.@wrap(inst_cmp, inst);
+				cpu.inst_cmp(inst);
 				nextcase inst::GET;
 			case inst::JMP:
-				cpu.@wrap(inst_jmp, inst);
+				cpu.inst_jmp(inst);
 				nextcase inst::GET;
 			case inst::RJMP:
-				cpu.@wrap(inst_rjmp, inst);
+				cpu.inst_rjmp(inst);
 				nextcase inst::GET;
 			case inst::MCL:
 				cpu.mmu_enabled = false;
@@ -435,19 +435,19 @@ fn int main(String[] args)
 				cpu.mmu_enabled = true;
 				nextcase inst::GET;
 			case inst::OUT:
-				cpu.@wrap(inst_out, inst);
+				cpu.inst_out(inst);
 				nextcase inst::GET;
 			case inst::IN:
-				cpu.@wrap(inst_in, inst);
+				cpu.inst_in(inst);
 				nextcase inst::GET;
 			case inst::CALL:
-				cpu.@wrap(inst_call, inst);
+				cpu.inst_call(inst);
 				nextcase inst::GET;
 			case inst::RCALL:
-				cpu.@wrap(inst_rcall, inst);
+				cpu.inst_rcall(inst);
 				nextcase inst::GET;
 			case inst::RET:
-				cpu.@wrap(inst_ret, inst);
+				cpu.inst_ret(inst);
 				nextcase inst::GET;
 			case inst::ISE:
 				cpu.flags.interrupt = true;
@@ -457,39 +457,34 @@ fn int main(String[] args)
 				cpu.flags.interrupt = false;
 				nextcase inst::GET;
 			case inst::LOOP:
-				cpu.@wrap(inst_loop, inst);
+				cpu.inst_loop(inst);
 				nextcase inst::GET;
 			case inst::PUSH:
-				cpu.@wrap(inst_push, inst);
+				cpu.inst_push(inst);
 				nextcase inst::GET;
 			case inst::POP:
-				cpu.@wrap(inst_pop, inst);
+				cpu.inst_pop(inst);
 				nextcase inst::GET;
 			case inst::SLA:
-				cpu.@wrap(inst_sla, inst);
+				cpu.inst_sla(inst);
 				nextcase inst::GET;
 			case inst::SRA:
-				cpu.@wrap(inst_sra, inst);
+				cpu.inst_sra(inst);
 				nextcase inst::GET;
 			case inst::SRL:
-				cpu.@wrap(inst_srl, inst);
+				cpu.inst_srl(inst);
 				nextcase inst::GET;
 			case inst::OR:
-				cpu.@wrap(inst_or, inst);
+				cpu.inst_or(inst);
 				nextcase inst::GET;
 			case inst::AND:
-				cpu.@wrap(inst_and, inst);
+				cpu.inst_and(inst);
 				nextcase inst::GET;
 			default:
 				cpu.error("Instruction %s is not implemented yet", inst.type.get_name());
 				nextcase inst::BREAK;
 		}
 	}
-}
-
-macro void Cpu.@wrap(&self, #inst_impl, Instruction inst)
-{
-	(void)self.#inst_impl(inst);
 }
 
 fn fault Cpu.throw(&self, Interrupt exc)

@@ -34,7 +34,7 @@ const String[NUM_REGISTERS] REG_NAMES = {
 //const REG_SIZE = 1; // Char
 
 const PTR_SIZE = 4; // Int
-$assert usz.sizeof >= PTR_SIZE : "Must be on at least a 32 bit system";
+$assert usz.sizeof >= PTR_SIZE &&& uptr.sizeof >= PTR_SIZE : "Must be on at least a 32 bit system";
 
 bitstruct Instruction (Printable) : ushort @littleendian
 {
