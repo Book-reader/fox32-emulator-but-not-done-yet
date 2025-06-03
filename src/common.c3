@@ -21,7 +21,9 @@ const NUM_OVERLAYS = 32;
 const BG_FB = 0x02000000;
 const BG_FB_SIZE = DISP_SIZE.x*DISP_SIZE.y*4;
 
-// 8 General registers
+// Number of possible exceptions and interrupts
+const NUM_VECTORS = 256;
+
 const NUM_REGISTERS = 36;
 const String[NUM_REGISTERS] REG_NAMES = {
 	"R0 ", "R1 ", "R2 ", "R3 ", "R4 ", "R5 ", "R6 ", "R7 ",
@@ -83,6 +85,8 @@ enum ArgType : char (String fox32name)
 }
 
 typedef InstructionType = char;
+typedef Interrupt = ushort;
+faultdef VM_EXCEPTION @builtin;
 
 enum BitWidth : char (String suffix, inline uint size, typeid type, typeid itype, String name)
 {
@@ -172,7 +176,7 @@ const InstructionType RTA   = 0x39;
 const InstructionType RETI  = 0x3A;
 const InstructionType FLP   = 0x3D;
 
-// it is impossible for these to be valid instructions as the instruction only has 6 bits to be stored in the instruction
+// it is impossible for these to be valid instructions as the instruction only has 6 bits to be stored in the instruction & these need all 8
 const InstructionType GET  = 0xFF;
 const InstructionType GET_ = 0xFE;
 const InstructionType BREAK = 0xFD;
@@ -481,3 +485,17 @@ fn String InstructionType.get_name(self)
 			return "INVALID";
 	}
 }
+
+module common::inter;
+
+const Interrupt INT_AUDIO_CHAN_3_REFILL @builtin = 0xFB;
+const Interrupt INT_AUDIO_CHAN_2_REFILL @builtin = 0xFC;
+const Interrupt INT_AUDIO_CHAN_1_REFILL @builtin = 0xFD;
+const Interrupt INT_AUDIO_CHAN_0_REFILL @builtin = 0xFE;
+const Interrupt INT_VSYNC @builtin = 0xFF;
+
+const Interrupt EXC_DIV_ZERO @builtin = 0x00;
+const Interrupt EXC_INVALID_OPCODE @builtin = 0x01;
+const Interrupt EXC_PAGE_FAULT_READ @builtin = 0x02;
+const Interrupt EXC_PAGE_FAULT_WRITE @builtin = 0x03;
+const Interrupt EXC_BREAK @builtin = 0x04;

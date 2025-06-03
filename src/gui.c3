@@ -9,17 +9,18 @@ import raylib5::rl;
 
 char[common::BG_FB_SIZE]/*[4]*/ empty_overlay;
 
-fn int run_gui(void* arg) => @pool_init(mem, 4096, allocator::temp_allocator_buffer_size)
+fn int run_gui(void* _arg) => @pool_init(mem, 4096, allocator::temp_allocator_buffer_size)
 {
-	Cpu* cpu = ((ThreadData*)arg).cpu;
-	bool* running = ((ThreadData*)arg).running;
+	ThreadData* arg = (ThreadData*)_arg;
+	Cpu* cpu = arg.cpu;
+	bool* running = arg.running;
 	rl::initWindow(...common::DISP_SIZE, "fox33");
 	rl::setTargetFPS(60);
 
 	// io::printn(*cpu);
 	// TODO: thread safety stuff & vblank using interrupt
 	Image img = {
-		.data = cpu.mem_get(common::BG_FB, common::BG_FB_SIZE),//ram[0x02000000..],//.fb.data,
+		.data = cpu.mem_get(common::BG_FB, common::BG_FB_SIZE)!!,//ram[0x02000000..],//.fb.data,
 		.width = common::DISP_SIZE.x,
 		.height = common::DISP_SIZE.y,
 		.format = UNCOMPRESSED_R8G8B8A8,
@@ -62,13 +63,13 @@ void main()
 	finalColor = vec4(texelColor.r, texelColor.g, texelColor.b, texelColor.a == 0 ? 0.0 : 1.0);
 }`);
 
-	((ThreadData*)arg).gui_init.push(true)!!;
+	arg.gui_init.push(true)!!;
 
 	while (*running && !rl::windowShouldClose())
 	{
 		rl::beginDrawing();
 
-		rl::updateTexture(bg_fb, cpu.mem_get(common::BG_FB, common::BG_FB_SIZE));
+		rl::updateTexture(bg_fb, cpu.mem_get(common::BG_FB, common::BG_FB_SIZE)!!);
 		rl::drawTexture(bg_fb, 0, 0, rl::WHITE);
 
 		foreach (i, overlay_tex : overlays)
@@ -82,7 +83,7 @@ void main()
 				{
 					overlay.changed = false;
 					// TODO: if I'm desperate for preformance I can replace 'overlay.size.x * overlay.size.y * 4' with '1' and lose bounds checking
-					rl::updateTextureRec(overlay_tex, {0, 0, ...overlay.size}, cpu.mem_get(overlay.fb_ptr, overlay.size.x * overlay.size.y * 4));
+					rl::updateTextureRec(overlay_tex, {0, 0, ...overlay.size}, cpu.mem_get(overlay.fb_ptr, overlay.size.x * overlay.size.y * 4)!!);
 				}
 				rl::beginShaderMode(boolean_transparency);
 				rl::drawTextureRec(overlay_tex, {0, 0, ...overlay.size}, {...overlay.pos}, rl::WHITE);
@@ -96,6 +97,7 @@ void main()
 		
 		rl::drawFPS(10, 10);
 		rl::endDrawing();
+		// *arg.vsync_int = true;
 		// signal that it's done. needs to be done after the drawing ends to be able to tell the main loop if it has exited
 		// defer emulator::gui_done.push(!rl::windowShouldClose())!!;
 	}

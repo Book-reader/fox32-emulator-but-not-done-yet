@@ -92,12 +92,15 @@ struct Cpu
 	char[] ram;
 	char[] rom;
 	DisplayOverlay[common::NUM_OVERLAYS] overlays;
+	bool[common::NUM_VECTORS] deferred_vectors;
+	bool exception;
+	Interrupt exception_type;
 }
 
 <*
 	@require len == buf.len
 *>
-fn void Cpu.mem_set(&self, uint start, uint len, char[] buf)
+fn void? Cpu.mem_set(&self, uint start, uint len, char[] buf)
 {
 	// cannot have overlap
 	if (start < common::RAM_SIZE && start + len - 1 <= common::RAM_SIZE)
@@ -110,14 +113,14 @@ fn void Cpu.mem_set(&self, uint start, uint len, char[] buf)
 	}
 	else
 	{
-		self.error("Out of range: 0x%.8x:%s", start, len);
+		return self.throw(inter::EXC_PAGE_FAULT_WRITE)?;
 	}
 }
 
 <*
 	@ensure return.len == len
 *>
-fn char[] Cpu.mem_get(&self, uint start, uint len)
+fn char[]? Cpu.mem_get(&self, uint start, uint len)
 {
 	// cannot have overlap
 	if (start < common::RAM_SIZE && start + len - 1 <= common::RAM_SIZE)
@@ -130,7 +133,8 @@ fn char[] Cpu.mem_get(&self, uint start, uint len)
 	}
 	else
 	{
-		self.error("Out of range: 0x%.8x:%s", start, len);
+		return self.throw(inter::EXC_PAGE_FAULT_READ)?;
+		//unreachable();
 	}
 }
 
@@ -177,11 +181,11 @@ macro Cpu.print_arg(&self, DString* str, Instruction inst, InstructionType $inst
 		case REG:
 		case REG_PTR:
 			// str.appendf(" %-8s", common::REG_NAMES[self.mem_get(self.inst_ptr_next + offset, 1).get(W8)]);
-			io::printf(" %-8s", common::REG_NAMES[self.mem_get(self.inst_ptr_next + offset, 1).get(W8)]);
+			io::printf(" %-8s", common::REG_NAMES[self.mem_get(self.inst_ptr_next + offset, 1)!.get(W8)]);
 		case IMM:
 		case IMM_PTR:
 			//str.appendf(" %.8X", self.mem_get(self.inst_ptr_next + offset, common::PTR_SIZE).get($width));
-			io::printf(" %.8X", self.mem_get(self.inst_ptr_next + offset, common::PTR_SIZE).get($width));
+			io::printf(" %.8X", self.mem_get(self.inst_ptr_next + offset, common::PTR_SIZE)!.get($width));
 	}
 }
 
@@ -215,7 +219,7 @@ fn void Cpu.deinit(&self)
 macro Cpu.error(&self, String fmt, ...)
 {
 	io::eprintfn("[ERROR] (%s) At cycle %s", $$FUNC, self.cycles);
-	io::eprintf("[ERROR] At instruction %.8x -> %s\n[ERROR] ", *self.inst_ptr, (Instruction)self.mem_get(*self.inst_ptr, 2).get(W16));
+	io::eprintf("[ERROR] At instruction %.8x -> %s\n[ERROR] ", *self.inst_ptr, (Instruction)self.mem_get(*self.inst_ptr, 2)!!.get(W16));
 	io::eprintfn(fmt, $vasplat);
 	foreach (i, reg : self.regs)
 	{
@@ -235,7 +239,13 @@ UnbufferedChannel{bool} gui_init;
 Cpu cpu;
 
 
-struct ThreadData {Cpu* cpu; bool* running; UnbufferedChannel{bool} gui_init;}
+struct ThreadData
+{
+	Cpu* cpu;
+	bool* running;
+	UnbufferedChannel{bool} gui_init;
+	bool* vsync_int;
+}
 // TODO: make all get instructions return a char[] so I can just do 'get_arg1()[:len] = get_arg2()[:len]' instead of all the bitmasks and switch statements and macros
 // it will make memory to memory operations faster & I can have a reg->reg version as well
 fn int main(String[] args)
@@ -252,6 +262,7 @@ fn int main(String[] args)
 	defer (void)gui_done.destroy();*/
 
 	bool running = true;
+	bool vsync_int = false;
 	Thread gui_thread;
 
 	defer
@@ -259,7 +270,7 @@ fn int main(String[] args)
 		running = false;
 		(void)gui_thread.join();
 	}
-	if (catch gui_thread.create(&gui::run_gui, &&(ThreadData){&cpu, &running, gui_init}))
+	if (catch gui_thread.create(&gui::run_gui, &&(ThreadData){&cpu, &running, gui_init, &vsync_int}))
 	{
 		logger::error("Failed to create gui thread!");
 		return 1;
@@ -293,7 +304,7 @@ fn int main(String[] args)
 	defer if (args.len > 1 && args[0] != "test") free(prog);
 
 
-	cpu.mem_set(common::DEFAULT_INST_PTR, prog.len, prog);
+	cpu.mem_set(common::DEFAULT_INST_PTR, prog.len, prog)!!;
 
 	logger::debug("Executing (%s b): %h", prog.len, prog[:prog.len < 200 ? prog.len : 200]);
 
@@ -315,6 +326,16 @@ fn int main(String[] args)
 			case inst::GET:
 				// set by the gui thread
 				if (@unlikely(!running)) nextcase inst::BREAK;
+				if (@unlikely(vsync_int))
+				{
+					vsync_int = false;
+					cpu.throw(INT_VSYNC);
+				}
+				if (cpu.exception)
+				{
+					// cpu.interrupt(cpu.exception_type);
+					cpu.error("got interrupt/exception %s", cpu.exception_type);
+				}
 				cpu.cycles ++;
 				/*gui_upd.push(true)!!;
 				if (!gui_done.pop()!!) nextcase inst::BREAK;*/
@@ -341,9 +362,9 @@ fn int main(String[] args)
 						clock = clock::now();
 					}
 				$endif
-				logger::debug("Nearby mem: %s", cpu.mem_get(*cpu.inst_ptr, 10));
+				logger::debug("Nearby mem: %s", cpu.mem_get(*cpu.inst_ptr, 10)!!);
 				
-				inst = (Instruction)cpu.mem_get(*cpu.inst_ptr, 2).get(W16);
+				inst = (Instruction)cpu.mem_get(*cpu.inst_ptr, 2)!!.get(W16);
 
 				logger::debug("%s 0x%.8x -> %s", cpu.cycles, *cpu.inst_ptr, inst);
 
@@ -368,44 +389,44 @@ fn int main(String[] args)
 				return 0;
 
 			case inst::INC:
-				cpu.inst_inc(inst);
+				cpu.@wrap(inst_inc, inst);
 				nextcase inst::GET;
 			case inst::DEC:
-				cpu.inst_dec(inst);
+				cpu.@wrap(inst_dec, inst);
 				nextcase inst::GET;
 			case inst::ADD:
-				cpu.inst_add(inst);
+				cpu.@wrap(inst_add, inst);
 				nextcase inst::GET;
 			case inst::SUB:
-				cpu.inst_sub(inst);
+				cpu.@wrap(inst_sub, inst);
 				nextcase inst::GET;
 			case inst::MUL:
-				cpu.inst_mul(inst);
+				cpu.@wrap(inst_mul, inst);
 				nextcase inst::GET;
 			case inst::DIV:
-				cpu.inst_div(inst);
+				cpu.@wrap(inst_div, inst);
 				nextcase inst::GET;
 			case inst::REM:
-				cpu.inst_rem(inst);
+				cpu.@wrap(inst_rem, inst);
 				nextcase inst::GET;
 			case inst::IREM:
-				cpu.inst_irem(inst);
+				cpu.@wrap(inst_irem, inst);
 				nextcase inst::GET;
 			case inst::MOV:
-				cpu.inst_mov(inst);
+				cpu.@wrap(inst_mov, inst);
 				nextcase inst::GET;
 			case inst::MOVZ:
 				// TODO: merge with inst_mov using generic
-				cpu.inst_movz(inst);
+				cpu.@wrap(inst_movz, inst);
 				nextcase inst::GET;
 			case inst::CMP:
-				cpu.inst_cmp(inst);
+				cpu.@wrap(inst_cmp, inst);
 				nextcase inst::GET;
 			case inst::JMP:
-				cpu.inst_jmp(inst);
+				cpu.@wrap(inst_jmp, inst);
 				nextcase inst::GET;
 			case inst::RJMP:
-				cpu.inst_rjmp(inst);
+				cpu.@wrap(inst_rjmp, inst);
 				nextcase inst::GET;
 			case inst::MCL:
 				cpu.mmu_enabled = false;
@@ -414,19 +435,19 @@ fn int main(String[] args)
 				cpu.mmu_enabled = true;
 				nextcase inst::GET;
 			case inst::OUT:
-				cpu.inst_out(inst);
+				cpu.@wrap(inst_out, inst);
 				nextcase inst::GET;
 			case inst::IN:
-				cpu.inst_in(inst);
+				cpu.@wrap(inst_in, inst);
 				nextcase inst::GET;
 			case inst::CALL:
-				cpu.inst_call(inst);
+				cpu.@wrap(inst_call, inst);
 				nextcase inst::GET;
 			case inst::RCALL:
-				cpu.inst_rcall(inst);
+				cpu.@wrap(inst_rcall, inst);
 				nextcase inst::GET;
 			case inst::RET:
-				cpu.inst_ret(inst);
+				cpu.@wrap(inst_ret, inst);
 				nextcase inst::GET;
 			case inst::ISE:
 				cpu.flags.interrupt = true;
@@ -436,28 +457,28 @@ fn int main(String[] args)
 				cpu.flags.interrupt = false;
 				nextcase inst::GET;
 			case inst::LOOP:
-				cpu.inst_loop(inst);
+				cpu.@wrap(inst_loop, inst);
 				nextcase inst::GET;
 			case inst::PUSH:
-				cpu.inst_push(inst);
+				cpu.@wrap(inst_push, inst);
 				nextcase inst::GET;
 			case inst::POP:
-				cpu.inst_pop(inst);
+				cpu.@wrap(inst_pop, inst);
 				nextcase inst::GET;
 			case inst::SLA:
-				cpu.inst_sla(inst);
+				cpu.@wrap(inst_sla, inst);
 				nextcase inst::GET;
 			case inst::SRA:
-				cpu.inst_sra(inst);
+				cpu.@wrap(inst_sra, inst);
 				nextcase inst::GET;
 			case inst::SRL:
-				cpu.inst_srl(inst);
+				cpu.@wrap(inst_srl, inst);
 				nextcase inst::GET;
 			case inst::OR:
-				cpu.inst_or(inst);
+				cpu.@wrap(inst_or, inst);
 				nextcase inst::GET;
 			case inst::AND:
-				cpu.inst_and(inst);
+				cpu.@wrap(inst_and, inst);
 				nextcase inst::GET;
 			default:
 				cpu.error("Instruction %s is not implemented yet", inst.type.get_name());
@@ -466,9 +487,20 @@ fn int main(String[] args)
 	}
 }
 
+macro void Cpu.@wrap(&self, #inst_impl, Instruction inst)
+{
+	(void)self.#inst_impl(inst);
+}
+
+fn fault Cpu.throw(&self, Interrupt exc)
+{
+	self.exception = true;
+	self.exception_type = exc;
+	return VM_EXCEPTION;
+}
+
 macro bool Cpu.should_execute(&self, Instruction inst)
 {
-	// TODO: @jump?
 	switch (inst.cond)
 	{
 		case ALWAYS:
@@ -492,15 +524,15 @@ macro Cpu._push(&self, BitWidth $width, val, bool $is_bytes)
 {
 	*self.stack_ptr -= $width;
 	$if $is_bytes:
-		self.mem_set(*self.stack_ptr, $width, val);
+		self.mem_set(*self.stack_ptr, $width, val)!;
 	$else
-		self.mem_get(*self.stack_ptr, $width).set($width, val);
+		self.mem_get(*self.stack_ptr, $width)!.set($width, val);
 	$endif
 }
 
 macro Cpu._pop(&self, BitWidth $width)
 {
-	var ret = self.mem_get(*self.stack_ptr, $width).get($width);
+	var ret = self.mem_get(*self.stack_ptr, $width)!.get($width);
 	*self.stack_ptr += $width;
 	return ret;
 }
@@ -525,9 +557,9 @@ macro Cpu.@setup(&self, Instruction inst, BitWidth $width, bool $move = true; @b
 	$endif
 	if (self.should_execute(inst))
 	{
-		self.@args(inst, $inst_name, $type, $width; #src, #dst)
+		(void)self.@args(inst, $inst_name, $type, $width; #src, #dst)
 		{
-			@body(#src, #dst);
+			(void)@body(#src, #dst);
 		};
 	}
 	else
@@ -570,14 +602,14 @@ macro Cpu.@args(&self, Instruction inst, String $inst_name, InstructionType $typ
 		$case 1:
 			// $typefrom($width.type) src = self.get_val($width, inst, SRC);
 			// @body(src, no_param($type, DST));
-			@body(self.get_val($width, inst, SRC), no_param($inst_name, DST));
+			@body(self.get_val($width, inst, SRC)!, no_param($inst_name, DST));
 		$case 2:
 			$if $type.is_bit_op():
 				// $typefrom($width.type) src = self.get_val(W8, inst, SRC);
-				@body(self.get_val(W8, inst, SRC), self.get_val($width, inst, DST));
+				@body(self.get_val(W8, inst, SRC)!, self.get_val($width, inst, DST)!);
 			$else
 				// $typefrom($width.type) src = self.get_val($width, inst, SRC);
-				@body(self.get_val($width, inst, SRC), self.get_val($width, inst, DST));
+				@body(self.get_val($width, inst, SRC)!, self.get_val($width, inst, DST)!);
 			$endif
 			// $typefrom($width.type) dst = self.get_val($width, inst, DST);
 			// @body(src, dst);
@@ -601,7 +633,7 @@ macro Cpu.set_val(&self, BitWidth $width, Instruction inst, ArgPos $arg, val, In
 	switch (inst.$eval($arg.name))
 	{
 		case REG:
-			char reg = self.mem_get(self.inst_ptr_next + offset, 1).get(W8);
+			char reg = self.mem_get(self.inst_ptr_next + offset, 1)!.get(W8);
 			/*if (reg == 7)
 			{
 				logger::info("Writing %s (%.8x) into R1", val, val);
@@ -612,14 +644,14 @@ macro Cpu.set_val(&self, BitWidth $width, Instruction inst, ArgPos $arg, val, In
 			}*/
 			self.regs[reg].write($width, val);
 		case REG_PTR:
-			char reg = self.mem_get(self.inst_ptr_next + offset, 1).get(W8);
-			uint smol_offset = !inst.has_offset ? 0 : self.mem_get(self.inst_ptr_next + offset + 1, 1).get(W8);
-			self.mem_get(self.regs[reg] + smol_offset, $width).set($width, val);
+			char reg = self.mem_get(self.inst_ptr_next + offset, 1)!.get(W8);
+			uint smol_offset = !inst.has_offset ? 0 : self.mem_get(self.inst_ptr_next + offset + 1, 1)!.get(W8);
+			self.mem_get(self.regs[reg] + smol_offset, $width)!.set($width, val);
 			// self.mem_get(self.regs[self.mem_get(self.inst_ptr_next + offset, 1).get(W8)], $width).set($width, val);
 		case IMM:
 			self.error("mov into immediate value not implemented");
 		case IMM_PTR:
-			self.mem_get(self.mem_get(self.inst_ptr_next + offset, common::PTR_SIZE).get(W32), $width).set($width, val);
+			self.mem_get(self.mem_get(self.inst_ptr_next + offset, common::PTR_SIZE)!.get(W32), $width)!.set($width, val);
 	}
 }
 
@@ -633,17 +665,17 @@ macro Cpu.get_val(&self, BitWidth $width, Instruction inst, ArgPos $arg, Instruc
 	switch (inst.$eval($arg.name))
 	{
 		case REG:
-			logger::debug("Reading from register %s", common::REG_NAMES[self.mem_get(self.inst_ptr_next + offset, 1).get(W8)]);
-			return self.regs[self.mem_get(self.inst_ptr_next + offset, 1).get(W8)].read($width);
+			logger::debug("Reading from register %s", common::REG_NAMES[self.mem_get(self.inst_ptr_next + offset, 1)!.get(W8)]);
+			return self.regs[self.mem_get(self.inst_ptr_next + offset, 1)!.get(W8)].read($width);
 		case REG_PTR:
-			char reg = self.mem_get(self.inst_ptr_next + offset, 1).get(W8);
-			uint smol_offset = !inst.has_offset ? 0 : self.mem_get(self.inst_ptr_next + offset + 1, 1).get(W8);
-			$typefrom($width.type) val = self.mem_get(self.regs[reg] + smol_offset, $width).get($width);
+			char reg = self.mem_get(self.inst_ptr_next + offset, 1)!.get(W8);
+			uint smol_offset = !inst.has_offset ? 0 : self.mem_get(self.inst_ptr_next + offset + 1, 1)!.get(W8);
+			$typefrom($width.type) val = self.mem_get(self.regs[reg] + smol_offset, $width)!.get($width);
 			return val;// self.mem_get(self.regs[reg] + self.mem_get(self.inst_ptr_next + 1, 1).get(W8), $width).get($width);
 		case IMM:
-			return self.mem_get(self.inst_ptr_next + offset, $width).get($width);
+			return self.mem_get(self.inst_ptr_next + offset, $width)!.get($width);
 		case IMM_PTR:
-			return self.mem_get(self.mem_get(self.inst_ptr_next + offset, common::PTR_SIZE).get(W32), $width).get($width);
+			return self.mem_get(self.mem_get(self.inst_ptr_next + offset, common::PTR_SIZE)!.get(W32), $width)!.get($width);
 	}
 }
 
