@@ -155,16 +155,16 @@ macro Cpu.print_instr(&self, Instruction inst, BitWidth $width, InstructionType 
 			// str.appendf(" %s", inst.src.fox32name);
 			io::print(inst.src.fox32name);
 			// TODO: report poor error messages when `@body(#src, #dst)` instead
-			self.print_arg(&str, inst, $type, $width, SRC);
+			self.print_arg(&str, inst, $type, $width, SRC)!!;
 		$case 2:
 			// str.appendf(" %s", inst.src.fox32name);
 			io::print(inst.src.fox32name);
-			self.print_arg(&str, inst, $type, $width, SRC);
+			self.print_arg(&str, inst, $type, $width, SRC)!!;
 			// str.appendf(",");
 			io::print(", ");
 			// str.appendf(" %s", inst.dst.fox32name);
 			io::print(inst.dst.fox32name);
-			self.print_arg(&str, inst, $type, $width, DST);
+			self.print_arg(&str, inst, $type, $width, DST)!!;
 		$default:
 			$error("a");
 	$endswitch
