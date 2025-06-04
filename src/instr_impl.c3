@@ -144,8 +144,8 @@ fn void? Cpu.inst_jmp(&self, Instruction inst) @Inst => self.@setup(inst, W32, f
 
 fn void? Cpu.inst_rjmp(&self, Instruction inst) @Inst => self.@setup_w(inst, false; BitWidth $width, #src, #dst)
 {
-	logger::debug("Jmping by %s", (int)#src);
-	self.inst_ptr_next = *self.inst_ptr + (int)#src;// - common::INST_SIZE;
+	logger::debug("RJmping by %s", ($typefrom($width.itype))#src);
+	self.inst_ptr_next = *self.inst_ptr + ($typefrom($width.itype))#src;// - common::INST_SIZE;
 }
 
 extern fn CInt putchar(CInt c);
@@ -222,13 +222,11 @@ fn void? Cpu.inst_call(&self, Instruction inst) @Inst => self.@setup(inst, W32, 
 
 fn void? Cpu.inst_rcall(&self, Instruction inst) @Inst => self.@setup_w(inst, false; BitWidth $width, #src, #dst)
 {
-	self.error("Rcall not implemented yet :3");
 	// save the value before moving forward so I can push the right value and jmp to the right value
 	$typefrom($width.itype) src = #src;
 	self.move_forward($width, inst::RCALL, inst);
-	// logger::info("Calling %.8x at %s", src, self.cycles);
 	self._push(W32, self.inst_ptr_next, false)!;
-	logger::debug("Calling 0x%.8x", src);
+	logger::debug("RCalling by 0x%.8x", src);
 	self.inst_ptr_next = *self.inst_ptr + src;
 }
 
@@ -237,7 +235,6 @@ fn void? Cpu.inst_ret(&self, Instruction inst) @Inst => self.@setup(inst, W32, f
 {
 	$typefrom(BitWidth.W32.type) src = self._pop(W32)!;
 	logger::debug("Returning to 0x%.8x", src);
-	// logger::info("Returning to %.8x at %s", src, self.cycles);
 	self.inst_ptr_next = src;
 }
 
