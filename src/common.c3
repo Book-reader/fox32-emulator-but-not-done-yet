@@ -499,3 +499,32 @@ const Interrupt EXC_INVALID_OPCODE @builtin = 0x01;
 const Interrupt EXC_PAGE_FAULT_READ @builtin = 0x02;
 const Interrupt EXC_PAGE_FAULT_WRITE @builtin = 0x03;
 const Interrupt EXC_BREAK @builtin = 0x04;
+
+fn String Interrupt.name(self)
+{
+	switch (self)
+	{
+		case INT_AUDIO_CHAN_3_REFILL:
+			return "INT_AUDIO_CHAN_3_REFILL";
+		case INT_AUDIO_CHAN_2_REFILL:
+			return "INT_AUDIO_CHAN_2_REFILL";
+		case INT_AUDIO_CHAN_1_REFILL:
+			return "INT_AUDIO_CHAN_1_REFILL";
+		case INT_AUDIO_CHAN_0_REFILL:
+			return "INT_AUDIO_CHAN_0_REFILL";
+		case INT_VSYNC:
+			return "INT_VSYNC";
+		case EXC_DIV_ZERO:
+			return "EXC_DIV_ZERO";
+		case EXC_INVALID_OPCODE:
+			return "EXC_INVALID_OPCODE";
+		case EXC_PAGE_FAULT_READ:
+			return "EXC_PAGE_FAULT_READ";
+		case EXC_PAGE_FAULT_WRITE:
+			return "EXC_PAGE_FAULT_WRITE";
+		case EXC_BREAK:
+			return "EXC_BREAK";
+		default:
+			return "SOFTWARE_DEFINED_EXCEPTION";
+	}
+}

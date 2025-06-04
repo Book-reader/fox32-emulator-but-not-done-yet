@@ -75,6 +75,16 @@ fn void? Cpu.inst_div(&self, Instruction inst) @Inst => self.@setup_w(inst; BitW
 	self.flags.zero = res == 0;
 }
 
+fn void? Cpu.inst_idiv(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, #src, #dst)
+{
+	logger::debug("dividing %s by %s", #dst, #src);
+	$typefrom($width.itype) src = #src;
+	if (src == 0) self.error("Cannot divide by zero");
+	$typefrom($width.itype) res = ($typefrom($width.itype))#dst / src;
+	self.set_val($width, inst, DST, ($typefrom($width.type))res)!;
+	self.flags.zero = res == 0;
+}
+
 fn void? Cpu.inst_rem(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, #src, #dst)
 {
 	logger::debug("getting remainder of %s and %s", #dst, #src);
@@ -286,8 +296,28 @@ fn void? Cpu.inst_sra(&self, Instruction inst) @Inst => self.@setup_w(inst; BitW
 
 fn void? Cpu.inst_srl(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, #src, #dst)
 {
-	// TODO: 'macro bool Instruction.is_signed($self)' to do this automatically
 	$typefrom($width.type) res = #dst >> #src;
+	self.set_val($width, inst, DST, res)!;
+	self.flags.zero = res == 0;
+}
+
+fn void? Cpu.inst_bts(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, #src, #dst)
+{
+	$typefrom($width.type) res = #dst | (1 << #src);
+	self.set_val($width, inst, DST, res)!;
+	self.flags.zero = res == 0;
+}
+
+fn void? Cpu.inst_bse(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, #src, #dst)
+{
+	$typefrom($width.type) res = #dst & (1 << #src);
+	self.set_val($width, inst, DST, res)!;
+	self.flags.zero = res == 0;
+}
+
+fn void? Cpu.inst_bcl(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, #src, #dst)
+{
+	$typefrom($width.type) res = #dst & ~(1 << #src);
 	self.set_val($width, inst, DST, res)!;
 	self.flags.zero = res == 0;
 }

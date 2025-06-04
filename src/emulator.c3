@@ -42,7 +42,7 @@ bitstruct CpuFlags : char
 	bool zero : 0;
 	bool carry : 1;
 	bool interrupt : 3;
-	bool exception_sp : 2;
+	bool swap_sp : 2;
 }
 
 struct DisplayOverlay
@@ -334,7 +334,7 @@ fn int main(String[] args)
 				if (cpu.exception)
 				{
 					// cpu.interrupt(cpu.exception_type);
-					cpu.error("got interrupt/exception %s", cpu.exception_type);
+					cpu.error("got interrupt/exception %s (%s)", cpu.exception_type.name(), cpu.exception_type);
 				}
 				cpu.cycles ++;
 				/*gui_upd.push(true)!!;
@@ -406,6 +406,9 @@ fn int main(String[] args)
 			case inst::DIV:
 				cpu.inst_div(inst);
 				nextcase inst::GET;
+			case inst::IDIV:
+				cpu.inst_idiv(inst);
+				nextcase inst::GET;
 			case inst::REM:
 				cpu.inst_rem(inst);
 				nextcase inst::GET;
@@ -473,6 +476,15 @@ fn int main(String[] args)
 				nextcase inst::GET;
 			case inst::SRL:
 				cpu.inst_srl(inst);
+				nextcase inst::GET;
+			case inst::BTS:
+				cpu.inst_bts(inst);
+				nextcase inst::GET;
+			case inst::BSE:
+				cpu.inst_bse(inst);
+				nextcase inst::GET;
+			case inst::BCL:
+				cpu.inst_bcl(inst);
 				nextcase inst::GET;
 			case inst::OR:
 				cpu.inst_or(inst);
