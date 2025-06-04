@@ -6,9 +6,9 @@ import logger;
 import std::io;
 import raylib5::rl;
 
-
 char[common::BG_FB_SIZE]/*[4]*/ empty_overlay;
 
+// TODO: have the gui thread hold a global tlocal copy of the framebuffer overlays, that is updated through a callback stored in the thread data run in this event loop
 fn int run_gui(void* _arg) => @pool_init(mem, 4096, allocator::temp_allocator_buffer_size)
 {
 	ThreadData* arg = (ThreadData*)_arg;
@@ -79,12 +79,12 @@ void main()
 			{
 				// logger::info("drawing overlay %s:%s", i, overlay.changed);
 				// io::printn(*overlay);
-				if (overlay.changed)
-				{
-					overlay.changed = false;
-					// TODO: if I'm desperate for preformance I can replace 'overlay.size.x * overlay.size.y * 4' with '1' and lose bounds checking
-					rl::updateTextureRec(overlay_tex, {0, 0, ...overlay.size}, cpu.mem_get(overlay.fb_ptr, overlay.size.x * overlay.size.y * 4)!!);
-				}
+
+				// I can't do overlay change detection as the memory backing the overlay can change at any time
+				// if (overlay.changed)
+				// TODO: if I'm desperate for preformance I can replace 'overlay.size.x * overlay.size.y * 4' with '1' and lose bounds checking
+				rl::updateTextureRec(overlay_tex, {0, 0, ...overlay.size}, cpu.mem_get(overlay.fb_ptr, overlay.size.x * overlay.size.y * 4)!!);
+
 				rl::beginShaderMode(boolean_transparency);
 				rl::drawTextureRec(overlay_tex, {0, 0, ...overlay.size}, {...overlay.pos}, rl::WHITE);
 				rl::endShaderMode();

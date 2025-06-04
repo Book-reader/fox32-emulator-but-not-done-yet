@@ -9,6 +9,16 @@ attrdef @Inst = @inline, @maydiscard;
 
 // NOTE: #src and #dst are FUNCTIONS that will be called EVERY TIME they are used
 // this is fine when debug printing is enabled, but not otherwise
+fn void? Cpu.inst_ise(&self, Instruction inst) @Inst => self.@setup(inst, W32; #src, #dst)
+{
+	self.flags.interrupt = true;
+}
+
+fn void? Cpu.inst_icl(&self, Instruction inst) @Inst => self.@setup(inst, W32; #src, #dst)
+{
+	self.flags.interrupt = false;
+}
+
 fn void? Cpu.inst_inc(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, #src, #dst)
 {
 	logger::debug("Incrementing %s", #src);
@@ -170,7 +180,6 @@ fn void? Cpu.inst_out(&self, Instruction inst) @Inst => self.@setup(inst, W32; #
 	{
 		OverlayAddr opt = (OverlayAddr)dst;
 		DisplayOverlay* over = &self.overlays[opt.idx];
-		over.changed = true;
 		switch (opt.type)
 		{
 			case POSITION:
@@ -199,23 +208,48 @@ fn void? Cpu.inst_out(&self, Instruction inst) @Inst => self.@setup(inst, W32; #
 }
 
 // TODO: match https://github.com/fox32-arch/fox32/blob/main/src/bus.c#L30
-fn void? Cpu.inst_in(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, #src, #dst)
+fn void? Cpu.inst_in(&self, Instruction inst) @Inst => self.@setup(inst, W32; #src, #dst)
 {
 	// uh, there's something I think
 	// looks like it's a dynamic method that can be switched at runtime
 	// $typefrom($width.type) dst = #dst;
 	// $typefrom($width.type) src = #src;
 	// if (dst != 0) self.error("You can't do that");
-	$typefrom($width.type) src = #src;
+	uint src = #src;
 
-	if (src != 0)
+	// stdin / serial port
+	if (src == 0)
 	{
-		logger::warn("In from not stdin is not supported yet: 0x%.8x", src);
-		self.set_val($width, inst, DST, ($typefrom($width.type))0)!;
+		self.set_val(W32, inst, DST, (uint)(io::stdin().read_byte()!!))!;
+	}
+	// Framebuffer overlays
+	else if (src >= 0x80000000 && src <= 0x8000031f)
+	{
+		OverlayAddr opt = (OverlayAddr)(uint)src;
+		DisplayOverlay* over = &self.overlays[opt.idx];
+		SplitInt ret_val @noinit;
+		switch (opt.type)
+		{
+			case POSITION:
+				ret_val = {over.pos.x, over.pos.y};
+				assert((uint)ret_val == (uint)(over.pos.x | (over.pos.y << 16)), "this is how ryfox did it, so it needs to match");
+				// logger::warn("returning position 0x%.8x", ret_value);
+			case SIZE:
+				ret_val = {over.size.x, over.size.y};
+				// logger::warn("returning size 0x%.8x", ret_value);
+			case FB_PTR:
+				ret_val = (SplitInt)over.fb_ptr;
+				// logger::warn("returning ptr 0x%.8x", ret_value);
+			case ENABLE:
+				ret_val = (SplitInt)((uint)over.enable);
+				// logger::warn("returning state 0x%.8x", ret_value);
+		}
+		self.set_val(W32, inst, DST, (uint)ret_val)!;
 	}
 	else
 	{
-		self.set_val($width, inst, DST, ($typefrom($width.type))(io::stdin().read_byte()!!))!;
+		logger::warn("In from not stdin is not supported yet: 0x%.8x", src);
+		self.set_val(W32, inst, DST, (uint)0)!;
 	}
 }
 

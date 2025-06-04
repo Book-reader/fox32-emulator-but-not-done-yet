@@ -51,8 +51,6 @@ struct DisplayOverlay
 	uint[<2>] size;
 	uint fb_ptr;
 	bool enable;
-	// to indicate whether rl::updateTextureRec needs to be called to regenerate the texture
-	bool changed;
 }
 
 bitstruct OverlayAddr : uint @littleendian
@@ -123,11 +121,11 @@ fn void? Cpu.mem_set(&self, uint start, uint len, char[] buf)
 fn char[]? Cpu.mem_get(&self, uint start, uint len)
 {
 	// cannot have overlap
-	if (start < common::RAM_SIZE && start + len - 1 <= common::RAM_SIZE)
+	if (start < common::RAM_SIZE && start + len - 1 < common::RAM_SIZE)
 	{
 		return self.ram[start:len];
 	}
-	else if (start >= common::ROM_START && start + len - 1 <= common::ROM_START + common::ROM_SIZE)
+	else if (start >= common::ROM_START && start + len - 1 < common::ROM_START + common::ROM_SIZE)
 	{
 		return self.rom[start-common::ROM_START:len];
 	}
@@ -453,11 +451,11 @@ fn int main(String[] args)
 				cpu.inst_ret(inst);
 				nextcase inst::GET;
 			case inst::ISE:
-				cpu.flags.interrupt = true;
+				cpu.inst_ise(inst);
 				logger::error("Interrupts don't work yet :3");
 				nextcase inst::GET;
 			case inst::ICL:
-				cpu.flags.interrupt = false;
+				cpu.inst_icl(inst);
 				nextcase inst::GET;
 			case inst::LOOP:
 				cpu.inst_loop(inst);
