@@ -41,8 +41,8 @@ bitstruct CpuFlags : char
 {
 	bool zero : 0;
 	bool carry : 1;
-	bool interrupt : 3;
-	bool swap_sp : 2;
+	bool interrupt : 2;
+	bool swap_sp : 3;
 }
 
 struct DisplayOverlay
