@@ -91,8 +91,10 @@ struct Cpu
 	char[] rom;
 	DisplayOverlay[common::NUM_OVERLAYS] overlays;
 	bool[common::NUM_VECTORS] deferred_vectors;
+	ushort deferred_vectors_count;
 	bool exception;
 	Interrupt exception_type;
+	uint exception_operand;
 }
 
 <*
@@ -111,7 +113,7 @@ fn void? Cpu.mem_set(&self, uint start, uint len, char[] buf)
 	}
 	else
 	{
-		return self.throw(inter::EXC_PAGE_FAULT_WRITE)?;
+		return self.throw(inter::EXC_PAGE_FAULT_WRITE, start)?;
 	}
 }
 
@@ -131,7 +133,7 @@ fn char[]? Cpu.mem_get(&self, uint start, uint len)
 	}
 	else
 	{
-		return self.throw(inter::EXC_PAGE_FAULT_READ)?;
+		return self.throw(inter::EXC_PAGE_FAULT_READ, start)?;
 		//unreachable();
 	}
 }
@@ -224,6 +226,40 @@ macro Cpu.error(&self, String fmt, ...)
 		logger::info("%s: %.8x", common::REG_NAMES[i], reg);
 	}
 	abort();
+}
+
+fn void Cpu.handle(&self, Interrupt interrupt_vec)
+{
+	self.exception = false;
+	if (!self.flags.interrupt && interrupt_vec < 256)
+	{
+		if (!self.deferred_vectors[interrupt_vec])
+		{
+			self.deferred_vectors[interrupt_vec] = true;
+			self.deferred_vectors_count ++;
+		}
+		logger::info("ignoring interrupt %s (%s)", interrupt_vec.name(), interrupt_vec);// self.error("handling errors when interrupts are disabled is not supported");
+		return;
+	}
+	uint handler = self.mem_get((uint)interrupt_vec * BitWidth.W32, common::PTR_SIZE)!!.get(W32);
+
+	if (@unlikely(self.flags.swap_sp)) self.error("swap_sp is not supported yet");
+
+	self._push(W32, *self.inst_ptr)!!;
+	self._push(W8, (char)self.flags)!!;
+	if (interrupt_vec < 256)
+	{
+		self._push(W32, (uint)interrupt_vec)!!;
+	}
+	else
+	{
+		assert(self.exception_operand != 0, "it probably shouldn't be zero");
+		self._push(W32, self.exception_operand)!!;
+		self.exception_operand = 0;
+	}
+	self.flags.interrupt = false;
+	self.flags.swap_sp = false;
+	*self.inst_ptr = handler;
 }
 
 /*macro CpuState.@get(#self; @body(Cpu #cpu))
@@ -324,15 +360,18 @@ fn int main(String[] args)
 			case inst::GET:
 				// set by the gui thread
 				if (@unlikely(!running)) nextcase inst::BREAK;
+
+				*cpu.inst_ptr = cpu.inst_ptr_next;
+
 				if (@unlikely(vsync_int))
 				{
 					vsync_int = false;
 					cpu.throw(INT_VSYNC);
 				}
-				if (cpu.exception)
+				if (@unlikely(cpu.exception))
 				{
-					// cpu.interrupt(cpu.exception_type);
-					cpu.error("got interrupt/exception %s (%s)", cpu.exception_type.name(), cpu.exception_type);
+					cpu.handle(cpu.exception_type);
+					// cpu.error("got interrupt/exception %s (%s)", cpu.exception_type.name(), cpu.exception_type);
 				}
 				cpu.cycles ++;
 				/*gui_upd.push(true)!!;
@@ -344,9 +383,8 @@ fn int main(String[] args)
 				}
 				// TODO: set a clock speed
 				$if $feature(DELAY):
-					thread::sleep(((NanoDuration)1000).to_duration());
+					thread::sleep_ns(1);
 				$endif
-				*cpu.inst_ptr = cpu.inst_ptr_next;
 
 				nextcase;
 			case inst::GET_:
@@ -450,9 +488,11 @@ fn int main(String[] args)
 			case inst::RET:
 				cpu.inst_ret(inst);
 				nextcase inst::GET;
+			case inst::RETI:
+				cpu.inst_reti(inst);
+				nextcase inst::GET;
 			case inst::ISE:
 				cpu.inst_ise(inst);
-				logger::error("Interrupts don't work yet :3");
 				nextcase inst::GET;
 			case inst::ICL:
 				cpu.inst_icl(inst);
@@ -497,10 +537,15 @@ fn int main(String[] args)
 	}
 }
 
-fn fault Cpu.throw(&self, Interrupt exc)
+fn fault Cpu.throw(&self, Interrupt exc, uint exception_operand = 0)
 {
 	self.exception = true;
 	self.exception_type = exc;
+	if (exc >= 256)
+	{
+		if (exception_operand == 0) self.error("threw an exception with operand of 0, this shouldn't happen");
+		self.exception_operand = exception_operand;
+	}
 	return VM_EXCEPTION;
 }
 
@@ -525,7 +570,7 @@ macro bool Cpu.should_execute(&self, Instruction inst)
 	}
 }
 
-macro Cpu._push(&self, BitWidth $width, val, bool $is_bytes)
+macro Cpu._push(&self, BitWidth $width, val, bool $is_bytes = false)
 {
 	*self.stack_ptr -= $width;
 	$if $is_bytes:

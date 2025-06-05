@@ -85,7 +85,7 @@ enum ArgType : char (String fox32name)
 }
 
 typedef InstructionType = char;
-typedef Interrupt = ushort;
+typedef Interrupt = inline ushort;
 faultdef VM_EXCEPTION @builtin;
 
 enum BitWidth : char (String suffix, inline uint size, typeid type, typeid itype, String name)
@@ -494,11 +494,11 @@ const Interrupt INT_AUDIO_CHAN_1_REFILL @builtin = 0xFD;
 const Interrupt INT_AUDIO_CHAN_0_REFILL @builtin = 0xFE;
 const Interrupt INT_VSYNC @builtin = 0xFF;
 
-const Interrupt EXC_DIV_ZERO @builtin = 0x00;
-const Interrupt EXC_INVALID_OPCODE @builtin = 0x01;
-const Interrupt EXC_PAGE_FAULT_READ @builtin = 0x02;
-const Interrupt EXC_PAGE_FAULT_WRITE @builtin = 0x03;
-const Interrupt EXC_BREAK @builtin = 0x04;
+const Interrupt EXC_DIV_ZERO @builtin = 256 + 0x00;
+const Interrupt EXC_INVALID_OPCODE @builtin = 256 + 0x01;
+const Interrupt EXC_PAGE_FAULT_READ @builtin = 256 + 0x02;
+const Interrupt EXC_PAGE_FAULT_WRITE @builtin = 256 + 0x03;
+const Interrupt EXC_BREAK @builtin = 256 + 0x04;
 
 fn String Interrupt.name(self)
 {

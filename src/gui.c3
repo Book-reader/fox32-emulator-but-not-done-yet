@@ -97,6 +97,7 @@ void main()
 			mouse_pos.set((uint)pos.x.clamp(0, 640), (uint)pos.y.clamp(0, 480));
 			// logger::debug("set mouse pos to <%s, %s>", mouse_pos.get().first, mouse_pos.get().second);
 		}
+		rl::clearBackground(rl::BLACK);
 		rl::updateTexture(bg_fb, cpu.mem_get(common::BG_FB, common::BG_FB_SIZE)!!);
 		rl::drawTexture(bg_fb, 0, 0, rl::WHITE);
 
@@ -115,7 +116,7 @@ void main()
 
 		rl::drawFPS(10, 10);
 		rl::endDrawing();
-		// *arg.vsync_int = true;
+		*arg.vsync_int = true;
 		// signal that it's done. needs to be done after the drawing ends to be able to tell the main loop if it has exited
 		// defer emulator::gui_done.push(!rl::windowShouldClose())!!;
 	}
