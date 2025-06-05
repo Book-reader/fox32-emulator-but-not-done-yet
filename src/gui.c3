@@ -91,7 +91,7 @@ void main()
 
 	arg.gui_init.push(true)!!;
 
-	while (*running && !rl::windowShouldClose())
+	while (@volatile_load(*running) && !rl::windowShouldClose())
 	{
 		rl::beginDrawing();
 		{
@@ -117,8 +117,13 @@ void main()
 		}
 
 		rl::drawFPS(10, 10);
+
+		// moving this after the endDrawing call fixes it *most* of the time, still happens sometimes tho
+		io::eprintn("vsync");
+		@volatile_store(*arg.vsync_int, true);
 		rl::endDrawing();
-		*arg.vsync_int = true;
+
+	//	io::printn("vsync");
 		// signal that it's done. needs to be done after the drawing ends to be able to tell the main loop if it has exited
 		// defer emulator::gui_done.push(!rl::windowShouldClose())!!;
 	}
@@ -127,6 +132,6 @@ void main()
 	rl::unloadShader(boolean_transparency);
 	rl::closeWindow();
 	logger::error("Gui closed, exiting");
-	*running = false;
+	@volatile_store(*running, false);
 	return 0;
 }

@@ -201,7 +201,6 @@ fn void Cpu.init(&self)
 	*self.inst_ptr = common::DEFAULT_INST_PTR;
 	*self.stack_ptr = common::DEFAULT_STACK_PTR;
 	self.inst_ptr_next = *self.inst_ptr;
-	self.mmu_enabled = true;
 
 	self.ram = mem::new_array(char, common::RAM_SIZE);
 	self.rom = mem::new_array(char, common::ROM_SIZE);
@@ -239,7 +238,7 @@ fn void Cpu.handle(&self, Interrupt interrupt_vec)
 
 fn void? Cpu._handle(&self, Interrupt interrupt_vec) @inline
 {
-	// TODO: put the whole thing in a (if catch fn void!(self, interrupt_vec)()) self.error(unable to handle...) instead of just directly aborting on failure
+	logger::info("recived interrupt %s (%s)", interrupt_vec.name(), interrupt_vec);
 	self.exception = false;
 	if (!self.flags.interrupt && interrupt_vec < 256)
 	{
@@ -251,7 +250,9 @@ fn void? Cpu._handle(&self, Interrupt interrupt_vec) @inline
 		logger::info("ignoring interrupt %s (%s)", interrupt_vec.name(), interrupt_vec);// self.error("handling errors when interrupts are disabled is not supported");
 		return;
 	}
+	logger::info("handling interrupt %s (%s)", interrupt_vec.name(), interrupt_vec);
 	uint handler = self.mem_get((uint)interrupt_vec * BitWidth.W32, common::PTR_SIZE)!.get(W32);
+	logger::info("jumping to 0x%.8x", handler);
 
 	if (@unlikely(self.flags.swap_sp)) self.error("swap_sp is not supported yet");
 
@@ -365,17 +366,17 @@ fn int main(String[] args)
 		switch (inst::GET_) @jump
 		{
 			case inst::NOP:
-				logger::panic("Reached NOP (does not exist in fox32rom)");
+				cpu.error("Reached NOP (does not exist in fox32rom)");
 				nextcase;
 			case inst::GET:
 				// set by the gui thread
-				if (@unlikely(!running)) nextcase inst::BREAK;
+				if (@unlikely(!@volatile_load(running))) nextcase inst::BREAK;
 
 				*cpu.inst_ptr = cpu.inst_ptr_next;
 
-				if (@unlikely(vsync_int))
+				if (@unlikely(@volatile_load(vsync_int)))
 				{
-					vsync_int = false;
+					@volatile_store(vsync_int, false);
 					cpu.throw(INT_VSYNC);
 				}
 				if (@unlikely(cpu.exception))

@@ -298,6 +298,7 @@ fn void? Cpu.inst_reti(&self, Instruction inst) @Inst => self.@setup(inst, W32, 
 		{
 			if (*vector)
 			{
+				logger::info("handling deferred interrupt %s (%s)", ((Interrupt)i).name(), i);
 				self.deferred_vectors_count --;
 				*vector = false;
 				*self.inst_ptr = self.inst_ptr_next;
