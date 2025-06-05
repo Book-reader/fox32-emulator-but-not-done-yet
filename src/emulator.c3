@@ -101,11 +101,11 @@ struct Cpu
 fn void? Cpu.mem_set(&self, uint start, uint len, char[] buf)
 {
 	// cannot have overlap
-	if (start < common::RAM_SIZE && start + len - 1 <= common::RAM_SIZE)
+	if (start < common::RAM_SIZE && start + len - 1 < common::RAM_SIZE)
 	{
 		self.ram[start:len] = buf[:len];
 	}
-	else if (start >= common::ROM_START && start + len - 1 <= common::ROM_START + common::ROM_SIZE)
+	else if (start >= common::ROM_START && start + len - 1 < common::ROM_START + common::ROM_SIZE)
 	{
 		self.rom[start-common::ROM_START:len] = buf[:len];
 	}
@@ -542,18 +542,19 @@ macro Cpu._pop(&self, BitWidth $width)
 	return ret;
 }
 
-macro Cpu.@setup_w(&self, Instruction inst, bool $move = true; @body(BitWidth $width, #src, #dst))
+macro Cpu.@setup_w(&self, Instruction inst, bool $move = true; @body(BitWidth $width/*, $Type*/, #src, #dst))
 {
 	@each_width(inst.width; BitWidth $width)
 	{
-		self.@setup(inst, $width, $move; #src, #dst)
+		self.@setup(inst, $width, $move; /*$Type, */#src, #dst)
 		{
-			@body($width, #src, #dst);
+			@body($width, /*$Type, */#src, #dst);
 		};
 	};
 }
 
-macro Cpu.@setup(&self, Instruction inst, BitWidth $width, bool $move = true; @body(#src, #dst))
+// TODO: also return $Type = $width.type
+macro Cpu.@setup(&self, Instruction inst, BitWidth $width, bool $move = true; @body(/*$Type, */#src, #dst))
 {
 	String $inst_name = @inst_name();
 	InstructionType $type = @inst_type();
@@ -564,7 +565,7 @@ macro Cpu.@setup(&self, Instruction inst, BitWidth $width, bool $move = true; @b
 	{
 		(void)self.@args(inst, $inst_name, $type, $width; #src, #dst)
 		{
-			(void)@body(#src, #dst);
+			(void)@body(/*$width.type,*/ #src, #dst);
 		};
 	}
 	else
