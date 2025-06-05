@@ -19,33 +19,33 @@ fn void? Cpu.inst_icl(&self, Instruction inst) @Inst => self.@setup(inst, W32; #
 	self.flags.interrupt = false;
 }
 
-fn void? Cpu.inst_inc(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, #src, #dst)
+fn void? Cpu.inst_inc(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
 {
 	logger::debug("Incrementing %s", #src);
-	$typefrom($width.type) res @noinit;
+	$Type res @noinit;
 
-	self.flags.carry = math::overflow_add(#src, ($typefrom($width.type))(1 << inst.dst.ordinal), &res);
+	self.flags.carry = math::overflow_add(#src, ($Type)(1 << inst.dst.ordinal), &res);
 	self.flags.zero = res == 0;
 
 	self.set_val($width, inst, SRC, res)!;
 }
 
-fn void? Cpu.inst_dec(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, #src, #dst)
+fn void? Cpu.inst_dec(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
 {
 	logger::debug("Decrementing %s", #src);
-	$typefrom($width.type) res @noinit;
-	$typefrom($width.type) src = #src;
-	bool over = math::overflow_sub(src, ($typefrom($width.type))(1 << inst.dst.ordinal), &res);
+	$Type res @noinit;
+	$Type src = #src;
+	bool over = math::overflow_sub(src, ($Type)(1 << inst.dst.ordinal), &res);
 	self.set_val($width, inst, SRC, res)!;
 	self.flags.carry = over;
 	self.flags.zero = res == 0;
 	// logger::info("Decrementing %s by %s (%s) = %s; carry: %s, zero: %s", src, (1 << inst.dst.ordinal), inst.dst, res, self.flags.carry, self.flags.zero);
 }
 
-fn void? Cpu.inst_add(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, #src, #dst)
+fn void? Cpu.inst_add(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
 {
 	logger::debug("Adding %s and %s", #dst, #src);
-	$typefrom($width.type) res @noinit;
+	$Type res @noinit;
 	// This also sets res
 	self.flags.carry = math::overflow_add(#dst, #src, &res);
 	self.flags.zero = res == 0;
@@ -54,20 +54,20 @@ fn void? Cpu.inst_add(&self, Instruction inst) @Inst => self.@setup_w(inst; BitW
 	// if (res == 0x04000000) self.error("Encountered 0x04000000 (bad)");
 }
 
-fn void? Cpu.inst_sub(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, #src, #dst)
+fn void? Cpu.inst_sub(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
 {
 	logger::debug("Subtracting %s and %s", #dst, #src);
-	$typefrom($width.type) res @noinit;
+	$Type res @noinit;
 	// This also sets res
 	self.flags.carry = math::overflow_sub(#dst, #src, &res);
 	self.flags.zero = res == 0;
 	self.set_val($width, inst, DST, res)!;
 }
 
-fn void? Cpu.inst_mul(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, #src, #dst)
+fn void? Cpu.inst_mul(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
 {
 	logger::debug("multiplying %s and %s", #dst, #src);
-	$typefrom($width.type) res @noinit;
+	$Type res @noinit;
 	// This also sets res
 	self.flags.carry = math::overflow_mul(#dst, #src, &res);
 	self.flags.zero = res == 0;
@@ -75,48 +75,48 @@ fn void? Cpu.inst_mul(&self, Instruction inst) @Inst => self.@setup_w(inst; BitW
 }
 
 // TODO: merge div, idiv, rem, irem, etc with a macro/generic that just replaces the operand and type (signed vs unsigned)
-fn void? Cpu.inst_div(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, #src, #dst)
+fn void? Cpu.inst_div(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
 {
 	logger::debug("dividing %s by %s", #dst, #src);
-	$typefrom($width.type) src = #src;
+	$Type src = #src;
 	if (src == 0) self.error("Cannot divide by zero");
-	$typefrom($width.type) res = #dst / src;
+	$Type res = #dst / src;
 	self.set_val($width, inst, DST, res)!;
 	self.flags.zero = res == 0;
 }
 
-fn void? Cpu.inst_idiv(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, #src, #dst)
+fn void? Cpu.inst_idiv(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
 {
 	logger::debug("dividing %s by %s", #dst, #src);
 	$typefrom($width.itype) src = #src;
 	if (src == 0) self.error("Cannot divide by zero");
 	$typefrom($width.itype) res = ($typefrom($width.itype))#dst / src;
-	self.set_val($width, inst, DST, ($typefrom($width.type))res)!;
+	self.set_val($width, inst, DST, ($Type)res)!;
 	self.flags.zero = res == 0;
 }
 
-fn void? Cpu.inst_rem(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, #src, #dst)
+fn void? Cpu.inst_rem(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
 {
 	logger::debug("getting remainder of %s and %s", #dst, #src);
-	$typefrom($width.type) src = #src;
+	$Type src = #src;
 	if (src == 0) self.error("Cannot divide by zero");
-	$typefrom($width.type) res = #dst % src;
+	$Type res = #dst % src;
 	self.set_val($width, inst, DST, res)!;
 	self.flags.zero = res == 0;
 }
 
-fn void? Cpu.inst_irem(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, #src, #dst)
+fn void? Cpu.inst_irem(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
 {
 	logger::debug("getting remainder of %s and %s", #dst, #src);
 	$typefrom($width.itype) src = #src;
 	if (src == 0) self.error("Cannot divide by zero");
 	$typefrom($width.itype) res = (($typefrom($width.itype))#dst) % src;
-	self.set_val($width, inst, DST, ($typefrom($width.type))res)!;
+	self.set_val($width, inst, DST, ($Type)res)!;
 	self.flags.zero = res == 0;
 }
 
 
-fn void? Cpu.inst_mov(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, #src, #dst)
+fn void? Cpu.inst_mov(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
 {
 	// logger::info("moving %s into %s", src, #dst);
 	logger::debug("Moving %s", #src);
@@ -124,7 +124,7 @@ fn void? Cpu.inst_mov(&self, Instruction inst) @Inst => self.@setup_w(inst; BitW
 }
 
 // Nice and jank :3
-fn void? Cpu.inst_movz(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, #src, #dst)
+fn void? Cpu.inst_movz(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
 {
 	logger::debug("MovZing %s", #src);
 	uint src = #src;
@@ -145,11 +145,11 @@ fn void? Cpu.inst_movz(&self, Instruction inst) @Inst => self.@setup_w(inst; Bit
 	}
 }
 
-fn void? Cpu.inst_cmp(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, #src, #dst)
+fn void? Cpu.inst_cmp(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
 {
 	logger::debug("Comparing %s and %s", #src, #dst);
-	$typefrom($width.type) src = #src;
-	$typefrom($width.type) dst = #dst;
+	$Type src = #src;
+	$Type dst = #dst;
 	self.flags.zero = src == dst;
 	self.flags.carry = src > dst;
 }
@@ -162,7 +162,7 @@ fn void? Cpu.inst_jmp(&self, Instruction inst) @Inst => self.@setup(inst, W32, f
 	self.inst_ptr_next = #src;
 }
 
-fn void? Cpu.inst_rjmp(&self, Instruction inst) @Inst => self.@setup_w(inst, false; BitWidth $width, #src, #dst)
+fn void? Cpu.inst_rjmp(&self, Instruction inst) @Inst => self.@setup_w(inst, false; BitWidth $width, $Type, #src, #dst)
 {
 	logger::debug("RJmping by %s", ($typefrom($width.itype))#src);
 	self.inst_ptr_next = *self.inst_ptr + ($typefrom($width.itype))#src;// - common::INST_SIZE;
@@ -212,8 +212,8 @@ fn void? Cpu.inst_in(&self, Instruction inst) @Inst => self.@setup(inst, W32; #s
 {
 	// uh, there's something I think
 	// looks like it's a dynamic method that can be switched at runtime
-	// $typefrom($width.type) dst = #dst;
-	// $typefrom($width.type) src = #src;
+	// $Type dst = #dst;
+	// $Type src = #src;
 	// if (dst != 0) self.error("You can't do that");
 	uint src = #src;
 
@@ -264,7 +264,7 @@ fn void? Cpu.inst_call(&self, Instruction inst) @Inst => self.@setup(inst, W32, 
 	self.inst_ptr_next = src;
 }
 
-fn void? Cpu.inst_rcall(&self, Instruction inst) @Inst => self.@setup_w(inst, false; BitWidth $width, #src, #dst)
+fn void? Cpu.inst_rcall(&self, Instruction inst) @Inst => self.@setup_w(inst, false; BitWidth $width, $Type, #src, #dst)
 {
 	// save the value before moving forward so I can push the right value and jmp to the right value
 	$typefrom($width.itype) src = #src;
@@ -296,23 +296,23 @@ fn void? Cpu.inst_loop(&self, Instruction inst) @Inst => self.@setup(inst, W32, 
 	}
 }
 
-fn void? Cpu.inst_push(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, #src, #dst)
+fn void? Cpu.inst_push(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
 {
 	logger::debug("Pushing %s %.8x", #src, #src);
 	self._push($width, #src, false)!;
 }
 
 // TODO: I don't know if set_val(src) is correct, I should check it
-fn void? Cpu.inst_pop(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, #src, #dst)
+fn void? Cpu.inst_pop(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
 {
 	logger::debug("Popping into %s", #src);
 	self.set_val($width, inst, SRC, self._pop($width)!)!;
 }
 
-fn void? Cpu.inst_sla(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, #src, #dst)
+fn void? Cpu.inst_sla(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
 {
 	// bit manipulation instructions always have W8 src bc 255 > 32bits
-	$typefrom($width.type) res = #dst << #src;
+	$Type res = #dst << #src;
 
 	// self.error("sla: src = %.8x, dst = %.8x, dst << src = %.8x, (dst) << (src) = %.8x", #src, #dst, res, (#dst) << (#src));
 
@@ -320,52 +320,52 @@ fn void? Cpu.inst_sla(&self, Instruction inst) @Inst => self.@setup_w(inst; BitW
 	self.flags.zero = res == 0;
 }
 
-fn void? Cpu.inst_sra(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, #src, #dst)
+fn void? Cpu.inst_sra(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
 {
 	// TODO: 'macro bool Instruction.is_arg_signed($self, ArgPos)' to do this automatically
 	$typefrom($width.itype) res = ($typefrom($width.itype))#dst >> ($typefrom($width.itype))#src;
-	self.set_val($width, inst, DST, ($typefrom($width.type))res)!;
+	self.set_val($width, inst, DST, ($Type)res)!;
 	self.flags.zero = res == 0;
 }
 
-fn void? Cpu.inst_srl(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, #src, #dst)
+fn void? Cpu.inst_srl(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
 {
-	$typefrom($width.type) res = #dst >> #src;
+	$Type res = #dst >> #src;
 	self.set_val($width, inst, DST, res)!;
 	self.flags.zero = res == 0;
 }
 
-fn void? Cpu.inst_bts(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, #src, #dst)
+fn void? Cpu.inst_bts(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
 {
-	$typefrom($width.type) res = #dst | (1 << #src);
+	$Type res = #dst | (1 << #src);
 	self.set_val($width, inst, DST, res)!;
 	self.flags.zero = res == 0;
 }
 
-fn void? Cpu.inst_bse(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, #src, #dst)
+fn void? Cpu.inst_bse(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
 {
-	$typefrom($width.type) res = #dst & (1 << #src);
+	$Type res = #dst & (1 << #src);
 	self.set_val($width, inst, DST, res)!;
 	self.flags.zero = res == 0;
 }
 
-fn void? Cpu.inst_bcl(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, #src, #dst)
+fn void? Cpu.inst_bcl(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
 {
-	$typefrom($width.type) res = #dst & ~(1 << #src);
+	$Type res = #dst & ~(1 << #src);
 	self.set_val($width, inst, DST, res)!;
 	self.flags.zero = res == 0;
 }
 
-fn void? Cpu.inst_or(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, #src, #dst)
+fn void? Cpu.inst_or(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
 {
-	$typefrom($width.type) res = #dst | #src;
+	$Type res = #dst | #src;
 	self.set_val($width, inst, DST, res)!;
 	self.flags.zero = res == 0;
 }
 
-fn void? Cpu.inst_and(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, #src, #dst)
+fn void? Cpu.inst_and(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
 {
-	$typefrom($width.type) res = #dst & #src;
+	$Type res = #dst & #src;
 	self.set_val($width, inst, DST, res)!;
 	self.flags.zero = res == 0;
 }

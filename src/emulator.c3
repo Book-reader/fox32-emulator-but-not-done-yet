@@ -542,19 +542,19 @@ macro Cpu._pop(&self, BitWidth $width)
 	return ret;
 }
 
-macro Cpu.@setup_w(&self, Instruction inst, bool $move = true; @body(BitWidth $width/*, $Type*/, #src, #dst))
+macro Cpu.@setup_w(&self, Instruction inst, bool $move = true; @body(BitWidth $width, $Type, #src, #dst))
 {
 	@each_width(inst.width; BitWidth $width)
 	{
-		self.@setup(inst, $width, $move; /*$Type, */#src, #dst)
+		self.@setup(inst, $width, $move; #src, #dst)
 		{
-			@body($width, /*$Type, */#src, #dst);
+			@body($width, $width.type, #src, #dst);
 		};
 	};
 }
 
 // TODO: also return $Type = $width.type
-macro Cpu.@setup(&self, Instruction inst, BitWidth $width, bool $move = true; @body(/*$Type, */#src, #dst))
+macro Cpu.@setup(&self, Instruction inst, BitWidth $width, bool $move = true; @body(#src, #dst))
 {
 	String $inst_name = @inst_name();
 	InstructionType $type = @inst_type();
@@ -565,7 +565,7 @@ macro Cpu.@setup(&self, Instruction inst, BitWidth $width, bool $move = true; @b
 	{
 		(void)self.@args(inst, $inst_name, $type, $width; #src, #dst)
 		{
-			(void)@body(/*$width.type,*/ #src, #dst);
+			(void)@body(#src, #dst);
 		};
 	}
 	else
