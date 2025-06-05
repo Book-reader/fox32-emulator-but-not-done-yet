@@ -40,11 +40,13 @@ fn int run_gui(void* _arg) => @pool_init(mem, 4096, allocator::temp_allocator_bu
 	bool* running = arg.running;
 	rl::initWindow(...common::DISP_SIZE, "fox33");
 	rl::setTargetFPS(60);
+	// TODO: this dosn't work on wayland nixos because raylib built with glfw-wayland depends on a libwayland-client which isn't in the library path on nixos & glfw-x11 can't hide the cursor, might switch to sdl2 instead
+	rl::hideCursor();
 
 	// io::printn(*cpu);
 	// TODO: thread safety stuff & vblank using interrupt
 	Image img = {
-		.data = cpu.mem_get(common::BG_FB, common::BG_FB_SIZE)!!,//ram[0x02000000..],//.fb.data,
+		.data = cpu.mem_get(common::BG_FB, common::BG_FB_SIZE)!!,
 		.width = common::DISP_SIZE.x,
 		.height = common::DISP_SIZE.y,
 		.format = UNCOMPRESSED_R8G8B8A8,

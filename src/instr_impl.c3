@@ -287,7 +287,7 @@ fn void? Cpu.inst_ret(&self, Instruction inst) @Inst => self.@setup(inst, W32, f
 	self.inst_ptr_next = src;
 }
 
-fn void? Cpu.inst_reti(&self, Instruction inst) @Inst => self.@setup(inst, W32/*, false*/; #src, #dst)
+fn void? Cpu.inst_reti(&self, Instruction inst) @Inst => self.@setup(inst, W32, false; #src, #dst)
 {
 	self.flags = (CpuFlags)self._pop(W8)!;
 	self.inst_ptr_next = self._pop(W32)!;

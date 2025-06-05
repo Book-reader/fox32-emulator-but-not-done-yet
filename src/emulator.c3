@@ -230,6 +230,7 @@ macro Cpu.error(&self, String fmt, ...)
 
 fn void Cpu.handle(&self, Interrupt interrupt_vec)
 {
+	// TODO: put the whole thing in a (if catch fn void!(self, interrupt_vec)()) self.error(unable to handle...) instead of just directly aborting on failure
 	self.exception = false;
 	if (!self.flags.interrupt && interrupt_vec < 256)
 	{
