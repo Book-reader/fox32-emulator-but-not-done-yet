@@ -122,6 +122,7 @@ fn void? Cpu.mem_set(&self, uint start, uint len, char[] buf)
 *>
 fn char[]? Cpu.mem_get(&self, uint start, uint len)
 {
+	// logger::info("%s, start: %s, len: %s", $$FUNC, start, len);
 	// cannot have overlap
 	if (start < common::RAM_SIZE && start + len - 1 < common::RAM_SIZE)
 	{
@@ -216,7 +217,7 @@ fn void Cpu.deinit(&self)
 	*self = {};
 }
 
-fn void Cpu.error(&self, String fmt, args..., String func = $$FUNC) @noinline @noreturn
+fn void Cpu.error(&self, String fmt, args..., String func = $$FUNC) @inline @noreturn
 {
 	io::eprintfn("[ERROR] (%s) At cycle %s", func, self.cycles);
 	io::eprintf("[ERROR] At instruction %.8x -> %s\n[ERROR] ", *self.inst_ptr, (Instruction)self.mem_get(*self.inst_ptr, 2)!!.get(W16));
@@ -230,6 +231,14 @@ fn void Cpu.error(&self, String fmt, args..., String func = $$FUNC) @noinline @n
 
 fn void Cpu.handle(&self, Interrupt interrupt_vec)
 {
+	if (catch self._handle(interrupt_vec))
+	{
+		self.error("Error while handling %s (%s): %s (%s)", interrupt_vec.name(), interrupt_vec, self.exception_type.name(), self.exception_type);
+	}
+}
+
+fn void? Cpu._handle(&self, Interrupt interrupt_vec) @inline
+{
 	// TODO: put the whole thing in a (if catch fn void!(self, interrupt_vec)()) self.error(unable to handle...) instead of just directly aborting on failure
 	self.exception = false;
 	if (!self.flags.interrupt && interrupt_vec < 256)
@@ -242,20 +251,20 @@ fn void Cpu.handle(&self, Interrupt interrupt_vec)
 		logger::info("ignoring interrupt %s (%s)", interrupt_vec.name(), interrupt_vec);// self.error("handling errors when interrupts are disabled is not supported");
 		return;
 	}
-	uint handler = self.mem_get((uint)interrupt_vec * BitWidth.W32, common::PTR_SIZE)!!.get(W32);
+	uint handler = self.mem_get((uint)interrupt_vec * BitWidth.W32, common::PTR_SIZE)!.get(W32);
 
 	if (@unlikely(self.flags.swap_sp)) self.error("swap_sp is not supported yet");
 
-	self._push(W32, *self.inst_ptr)!!;
-	self._push(W8, (char)self.flags)!!;
+	self._push(W32, *self.inst_ptr)!;
+	self._push(W8, (char)self.flags)!;
 	if (interrupt_vec < 256)
 	{
-		self._push(W32, (uint)interrupt_vec)!!;
+		self._push(W32, (uint)interrupt_vec)!;
 	}
 	else
 	{
 		assert(self.exception_operand != 0, "it probably shouldn't be zero");
-		self._push(W32, self.exception_operand)!!;
+		self._push(W32, self.exception_operand)!;
 		self.exception_operand = 0;
 	}
 	self.flags.interrupt = false;
