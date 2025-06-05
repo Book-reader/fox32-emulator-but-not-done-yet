@@ -216,16 +216,16 @@ fn void Cpu.deinit(&self)
 	*self = {};
 }
 
-macro Cpu.error(&self, String fmt, ...)
+fn void Cpu.error(&self, String fmt, args..., String func = $$FUNC) @noinline @noreturn
 {
-	io::eprintfn("[ERROR] (%s) At cycle %s", $$FUNC, self.cycles);
+	io::eprintfn("[ERROR] (%s) At cycle %s", func, self.cycles);
 	io::eprintf("[ERROR] At instruction %.8x -> %s\n[ERROR] ", *self.inst_ptr, (Instruction)self.mem_get(*self.inst_ptr, 2)!!.get(W16));
-	io::eprintfn(fmt, $vasplat);
+	io::eprintfn(fmt, ...args);
 	foreach (i, reg : self.regs)
 	{
 		logger::info("%s: %.8x", common::REG_NAMES[i], reg);
 	}
-	abort();
+	$$trap();
 }
 
 fn void Cpu.handle(&self, Interrupt interrupt_vec)
