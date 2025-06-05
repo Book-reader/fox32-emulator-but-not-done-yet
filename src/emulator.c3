@@ -147,6 +147,7 @@ macro Cpu.print_instr(&self, Instruction inst, BitWidth $width, InstructionType 
 	// static char[256] buf;
 	DString str;
 	// str.init(allocator::wrap(&buf));
+	io::printf("%s ", self.cycles);
 	/*str.appendf*/io::printf("SP=%.8X IP=%.8X %-6s %s %-5s ", *self.stack_ptr, *self.inst_ptr, inst.cond.name, $width.name, $inst_name);
 	$switch $type.arg_count():
 		$case 0:
@@ -218,7 +219,7 @@ fn void Cpu.deinit(&self)
 
 fn void Cpu.error(&self, String fmt, args..., String func = $$FUNC) @inline @noreturn
 {
-	io::eprintfn("[ERROR] (%s) At cycle %s", func, self.cycles);
+	io::eprintfn("[ERROR] %s (%s) At cycle %s", time::now(), func, self.cycles);
 	io::eprintf("[ERROR] At instruction %.8x -> %s\n[ERROR] ", *self.inst_ptr, (Instruction)self.mem_get(*self.inst_ptr, 2)!!.get(W16));
 	io::eprintfn(fmt, ...args);
 	foreach (i, reg : self.regs)
@@ -238,7 +239,7 @@ fn void Cpu.handle(&self, Interrupt interrupt_vec)
 
 fn void? Cpu._handle(&self, Interrupt interrupt_vec) @inline
 {
-	logger::info("recived interrupt %s (%s)", interrupt_vec.name(), interrupt_vec);
+	// logger::info("recived interrupt %s (%s)", interrupt_vec.name(), interrupt_vec);
 	self.exception = false;
 	if (!self.flags.interrupt && interrupt_vec < 256)
 	{
@@ -247,12 +248,12 @@ fn void? Cpu._handle(&self, Interrupt interrupt_vec) @inline
 			self.deferred_vectors[interrupt_vec] = true;
 			self.deferred_vectors_count ++;
 		}
-		logger::info("ignoring interrupt %s (%s)", interrupt_vec.name(), interrupt_vec);// self.error("handling errors when interrupts are disabled is not supported");
+		// logger::info("ignoring interrupt %s (%s)", interrupt_vec.name(), interrupt_vec);// self.error("handling errors when interrupts are disabled is not supported");
 		return;
 	}
-	logger::info("handling interrupt %s (%s)", interrupt_vec.name(), interrupt_vec);
+	// logger::info("handling interrupt %s (%s)", interrupt_vec.name(), interrupt_vec);
 	uint handler = self.mem_get((uint)interrupt_vec * BitWidth.W32, common::PTR_SIZE)!.get(W32);
-	logger::info("jumping to 0x%.8x", handler);
+	// logger::info("jumping to interrupt handler: 0x%.8x, should return to 0x%.8x", handler, *self.inst_ptr);
 
 	if (@unlikely(self.flags.swap_sp)) self.error("swap_sp is not supported yet");
 
@@ -271,6 +272,29 @@ fn void? Cpu._handle(&self, Interrupt interrupt_vec) @inline
 	self.flags.interrupt = false;
 	self.flags.swap_sp = false;
 	*self.inst_ptr = handler;
+}
+
+<*
+	@require self.flags.interrupt : "handle_deferred_interrupts only works when interrupts are enabled"
+*>
+fn void Cpu.handle_deferred_interrupts(&self)
+{
+	if (self.deferred_vectors_count > 0)
+	{
+		foreach (i, &vector : self.deferred_vectors)
+		{
+			if (*vector)
+			{
+				// logger::info("handling deferred interrupt %s (%s)", ((Interrupt)i).name(), i);
+				self.deferred_vectors_count --;
+				*vector = false;
+				*self.inst_ptr = self.inst_ptr_next;
+				self.handle((Interrupt)i);
+				self.inst_ptr_next = *self.inst_ptr;
+				if (self.deferred_vectors_count == 0) break;
+			}
+		}
+	}
 }
 
 /*macro CpuState.@get(#self; @body(Cpu #cpu))
@@ -370,13 +394,13 @@ fn int main(String[] args)
 				nextcase;
 			case inst::GET:
 				// set by the gui thread
-				if (@unlikely(!@volatile_load(running))) nextcase inst::BREAK;
+				if (@unlikely(!@atomic_load(running))) nextcase inst::BREAK;
 
 				*cpu.inst_ptr = cpu.inst_ptr_next;
 
-				if (@unlikely(@volatile_load(vsync_int)))
+				if (@unlikely(@atomic_load(vsync_int)))
 				{
-					@volatile_store(vsync_int, false);
+					@atomic_store(vsync_int, false);
 					cpu.throw(INT_VSYNC);
 				}
 				if (@unlikely(cpu.exception))
@@ -583,17 +607,21 @@ macro bool Cpu.should_execute(&self, Instruction inst)
 
 macro Cpu._push(&self, BitWidth $width, val, bool $is_bytes = false)
 {
+	// static char[4] data;
 	*self.stack_ptr -= $width;
 	$if $is_bytes:
 		self.mem_set(*self.stack_ptr, $width, val)!;
 	$else
 		self.mem_get(*self.stack_ptr, $width)!.set($width, val);
 	$endif
+	// ((char[])&data).set(W32, (uint)val);
+	// logger::info("val bytes: %s. top 20 bytes of the stack: %s", data[:$width], self.mem_get(*self.stack_ptr, 20)!);
 }
 
 macro Cpu._pop(&self, BitWidth $width)
 {
 	var ret = self.mem_get(*self.stack_ptr, $width)!.get($width);
+	// if (ret == 0x000000f0) self.error("popped the evil");
 	*self.stack_ptr += $width;
 	return ret;
 }
@@ -617,11 +645,16 @@ macro Cpu.@setup(&self, Instruction inst, BitWidth $width, bool $move = true; @b
 	$if $feature(FOXLOG):
 		self.print_instr(inst, $width, $type, $inst_name);
 	$endif
+
+	$if $move:
+		defer self.move_forward($width, $type, inst);
+	$endif
+
 	if (self.should_execute(inst))
 	{
 		(void)self.@args(inst, $inst_name, $type, $width; #src, #dst)
 		{
-			(void)@body(#src, #dst);
+			@body(#src, #dst);
 		};
 	}
 	else
@@ -632,9 +665,6 @@ macro Cpu.@setup(&self, Instruction inst, BitWidth $width, bool $move = true; @b
 		logger::debug("Skipping instruction %s", inst);
 		// logger::info("Skipping instruction %s", inst);
 	}
-	$if $move:
-		self.move_forward($width, $type, inst);
-	$endif
 }
 
 // TODO: have #src and #dst be both getters and setters, so you can do #dst.set(#src.get() + #dst.get()) (ofc storing #dst first)

@@ -13,6 +13,7 @@ attrdef @Inst = @inline, @maydiscard;
 fn void? Cpu.inst_ise(&self, Instruction inst) @Inst => self.@setup(inst, W32; #src, #dst)
 {
 	self.flags.interrupt = true;
+	self.handle_deferred_interrupts();
 }
 
 fn void? Cpu.inst_icl(&self, Instruction inst) @Inst => self.@setup(inst, W32; #src, #dst)
@@ -292,20 +293,9 @@ fn void? Cpu.inst_reti(&self, Instruction inst) @Inst => self.@setup(inst, W32, 
 	self.flags = (CpuFlags)self._pop(W8)!;
 	self.inst_ptr_next = self._pop(W32)!;
 	if (self.flags.swap_sp) self.error("swap_sp not implemented yet (reti)");
-	if (self.flags.interrupt && self.deferred_vectors_count != 0)
+	if (self.flags.interrupt)
 	{
-		foreach (i, &vector : self.deferred_vectors)
-		{
-			if (*vector)
-			{
-				logger::info("handling deferred interrupt %s (%s)", ((Interrupt)i).name(), i);
-				self.deferred_vectors_count --;
-				*vector = false;
-				*self.inst_ptr = self.inst_ptr_next;
-				self.handle((Interrupt)i);
-				if (self.deferred_vectors_count == 0) break;
-			}
-		}
+		self.handle_deferred_interrupts();
 	}
 }
 

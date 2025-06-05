@@ -2,3 +2,4 @@ build/
 perf.data*
 *.o
 test.log
+vgcore*

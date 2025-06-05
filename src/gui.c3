@@ -91,7 +91,7 @@ void main()
 
 	arg.gui_init.push(true)!!;
 
-	while (@volatile_load(*running) && !rl::windowShouldClose())
+	while (@atomic_load(*running) && !rl::windowShouldClose())
 	{
 		rl::beginDrawing();
 		{
@@ -119,8 +119,8 @@ void main()
 		rl::drawFPS(10, 10);
 
 		// moving this after the endDrawing call fixes it *most* of the time, still happens sometimes tho
-		io::eprintn("vsync");
-		@volatile_store(*arg.vsync_int, true);
+		// io::eprintn("vsync");
+		@atomic_store(*arg.vsync_int, true);
 		rl::endDrawing();
 
 	//	io::printn("vsync");
@@ -132,6 +132,6 @@ void main()
 	rl::unloadShader(boolean_transparency);
 	rl::closeWindow();
 	logger::error("Gui closed, exiting");
-	@volatile_store(*running, false);
+	@atomic_store(*running, false);
 	return 0;
 }
