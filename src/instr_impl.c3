@@ -1,6 +1,7 @@
 module emulator;
 import common;
 import logger;
+import gui;
 
 import std::io;
 import std::math;
@@ -175,35 +176,34 @@ fn void? Cpu.inst_out(&self, Instruction inst) @Inst => self.@setup(inst, W32; #
 {
 	uint dst = #dst;
 
-	// Framebuffer overlays
-	if (dst >= 0x80000000 && dst <= 0x8000031f)
+
+	switch (dst)
 	{
-		OverlayAddr opt = (OverlayAddr)dst;
-		DisplayOverlay* over = &self.overlays[opt.idx];
-		switch (opt.type)
-		{
-			case POSITION:
-				SplitInt val = (SplitInt)#src;
-				over.pos.x = val.first;
-				over.pos.y = val.second;
-			case SIZE:
-				SplitInt val = (SplitInt)#src;
-				over.size.x = val.first;
-				over.size.y = val.second;
-			case FB_PTR:
-				over.fb_ptr = #src;
-			case ENABLE:
-				over.enable = #src != 0;
-		}
-	}
-	// Serial port. I'm pretty sure this isn't actually how serial works but ¯\_(ツ)_/¯
-	else if (dst == 0)
-	{
-		putchar((CInt)#src);
-	}
-	else
-	{
-		logger::warn("Out to 0x%.8x is not supported yet", dst);
+		// serial port
+		case 0:
+			putchar((CInt)#src);
+		// Framebuffer overlays
+		case 0x80000000..0x8000031f:
+			OverlayAddr opt = (OverlayAddr)dst;
+			DisplayOverlay* over = &self.overlays[opt.idx];
+			switch (opt.type)
+			{
+				case POSITION:
+					SplitInt val = (SplitInt)#src;
+					over.pos.x = val.first;
+					over.pos.y = val.second;
+				case SIZE:
+					SplitInt val = (SplitInt)#src;
+					over.size.x = val.first;
+					over.size.y = val.second;
+				case FB_PTR:
+					over.fb_ptr = #src;
+				case ENABLE:
+					over.enable = #src != 0;
+			}
+		// Everything else
+		default:
+			logger::warn("Out to 0x%.8x is not supported yet", dst);
 	}
 }
 
@@ -217,39 +217,44 @@ fn void? Cpu.inst_in(&self, Instruction inst) @Inst => self.@setup(inst, W32; #s
 	// if (dst != 0) self.error("You can't do that");
 	uint src = #src;
 
-	// stdin / serial port
-	if (src == 0)
+	switch (src)
 	{
-		self.set_val(W32, inst, DST, (uint)(io::stdin().read_byte()!!))!;
-	}
-	// Framebuffer overlays
-	else if (src >= 0x80000000 && src <= 0x8000031f)
-	{
-		OverlayAddr opt = (OverlayAddr)(uint)src;
-		DisplayOverlay* over = &self.overlays[opt.idx];
-		SplitInt ret_val @noinit;
-		switch (opt.type)
-		{
-			case POSITION:
-				ret_val = {over.pos.x, over.pos.y};
-				assert((uint)ret_val == (uint)(over.pos.x | (over.pos.y << 16)), "this is how ryfox did it, so it needs to match");
-				// logger::warn("returning position 0x%.8x", ret_value);
-			case SIZE:
-				ret_val = {over.size.x, over.size.y};
-				// logger::warn("returning size 0x%.8x", ret_value);
-			case FB_PTR:
-				ret_val = (SplitInt)over.fb_ptr;
-				// logger::warn("returning ptr 0x%.8x", ret_value);
-			case ENABLE:
-				ret_val = (SplitInt)((uint)over.enable);
-				// logger::warn("returning state 0x%.8x", ret_value);
-		}
-		self.set_val(W32, inst, DST, (uint)ret_val)!;
-	}
-	else
-	{
-		logger::warn("In from not stdin is not supported yet: 0x%.8x", src);
-		self.set_val(W32, inst, DST, (uint)0)!;
+		// stdin/serial port
+		case 0:
+			self.set_val(W32, inst, DST, (uint)(io::stdin().read_byte()!!))!;
+		// framebuffer overlays
+		case 0x80000000..0x8000031f:
+			OverlayAddr opt = (OverlayAddr)(uint)src;
+			DisplayOverlay* over = &self.overlays[opt.idx];
+			SplitInt ret_val @noinit;
+			switch (opt.type)
+			{
+				case POSITION:
+					ret_val = {over.pos.x, over.pos.y};
+					assert((uint)ret_val == (uint)(over.pos.x | (over.pos.y << 16)), "this is how ryfox did it, so it needs to match");
+					// logger::warn("returning position 0x%.8x", ret_value);
+				case SIZE:
+					ret_val = {over.size.x, over.size.y};
+					// logger::warn("returning size 0x%.8x", ret_value);
+				case FB_PTR:
+					ret_val = (SplitInt)over.fb_ptr;
+					// logger::warn("returning ptr 0x%.8x", ret_value);
+				case ENABLE:
+					ret_val = (SplitInt)((uint)over.enable);
+					// logger::warn("returning state 0x%.8x", ret_value);
+			}
+			self.set_val(W32, inst, DST, (uint)ret_val)!;
+		// mouse buttons
+		case 0x80000400:
+			logger::warn("mouse buttons are not supported yet");
+			nextcase default;
+		// mouse position
+		case 0x80000401:
+			self.set_val(W32, inst, DST, (uint)gui::mouse_pos.get())!;
+		// other (TODO: once it's all implemented, make this an error only if it's an error in the reference emulator)
+		default:
+			logger::warn("In from not stdin is not supported yet: 0x%.8x", src);
+			self.set_val(W32, inst, DST, (uint)0)!;
 	}
 }
 

@@ -4,13 +4,37 @@ import common;
 import logger;
 
 import std::io;
+import std::thread;
 import raylib5::rl;
 
-char[common::BG_FB_SIZE]/*[4]*/ empty_overlay;
+char[common::BG_FB_SIZE] empty_overlay;
+struct MousePos
+{
+	Mutex mutex;
+	SplitInt pos;
+}
 
-// TODO: have the gui thread hold a global tlocal copy of the framebuffer overlays, that is updated through a callback stored in the thread data run in this event loop
+fn SplitInt MousePos.get(&self)
+{
+	self.mutex.lock()!!;
+	defer (void)self.mutex.unlock();
+	return self.pos;
+}
+
+fn void MousePos.set(&self, uint x, uint y)
+{
+	self.mutex.lock()!!;
+	defer (void)self.mutex.unlock();
+	self.pos = {x, y};
+}
+
+MousePos mouse_pos;
+
 fn int run_gui(void* _arg) => @pool_init(mem, 4096, allocator::temp_allocator_buffer_size)
 {
+	mouse_pos.mutex.init()!!;
+	defer (void)mouse_pos.mutex.destroy();
+
 	ThreadData* arg = (ThreadData*)_arg;
 	Cpu* cpu = arg.cpu;
 	bool* running = arg.running;
@@ -68,7 +92,11 @@ void main()
 	while (*running && !rl::windowShouldClose())
 	{
 		rl::beginDrawing();
-
+		{
+			Vector2 pos = rl::getMousePosition();
+			mouse_pos.set((uint)pos.x.clamp(0, 640), (uint)pos.y.clamp(0, 480));
+			// logger::debug("set mouse pos to <%s, %s>", mouse_pos.get().first, mouse_pos.get().second);
+		}
 		rl::updateTexture(bg_fb, cpu.mem_get(common::BG_FB, common::BG_FB_SIZE)!!);
 		rl::drawTexture(bg_fb, 0, 0, rl::WHITE);
 
@@ -77,12 +105,6 @@ void main()
 			DisplayOverlay* overlay = &cpu.overlays[i];
 			if (overlay.enable)
 			{
-				// logger::info("drawing overlay %s:%s", i, overlay.changed);
-				// io::printn(*overlay);
-
-				// I can't do overlay change detection as the memory backing the overlay can change at any time
-				// if (overlay.changed)
-				// TODO: if I'm desperate for preformance I can replace 'overlay.size.x * overlay.size.y * 4' with '1' and lose bounds checking
 				rl::updateTextureRec(overlay_tex, {0, 0, ...overlay.size}, cpu.mem_get(overlay.fb_ptr, overlay.size.x * overlay.size.y * 4)!!);
 
 				rl::beginShaderMode(boolean_transparency);
@@ -91,10 +113,6 @@ void main()
 			}
 		}
 
-
-		// emulator::gui_upd.pop()!!;
-		// logger::warn("Not implemented yet");
-		
 		rl::drawFPS(10, 10);
 		rl::endDrawing();
 		// *arg.vsync_int = true;
