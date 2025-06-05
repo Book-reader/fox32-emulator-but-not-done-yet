@@ -253,7 +253,7 @@ fn void? Cpu.inst_in(&self, Instruction inst) @Inst => self.@setup(inst, W32; #s
 			self.set_val(W32, inst, DST, (uint)gui::mouse_pos.get())!;
 		// other (TODO: once it's all implemented, make this an error only if it's an error in the reference emulator)
 		default:
-			logger::warn("In from not stdin is not supported yet: 0x%.8x", src);
+			logger::warn("In from 0x%.8x is not supported yet", src);
 			self.set_val(W32, inst, DST, (uint)0)!;
 	}
 }
