@@ -102,12 +102,11 @@ struct Cpu
 *>
 fn void? Cpu.mem_set(&self, uint start, uint len, char[] buf)
 {
-	// cannot have overlap
-	if (start < common::RAM_SIZE && start + len - 1 < common::RAM_SIZE)
+	if (start < common::RAM_SIZE && start + len <= common::RAM_SIZE)
 	{
 		self.ram[start:len] = buf[:len];
 	}
-	else if (start >= common::ROM_START && start + len - 1 < common::ROM_START + common::ROM_SIZE)
+	else if (start >= common::ROM_START && start <= common::ROM_START + common::ROM_SIZE && start + len <= common::ROM_START + common::ROM_SIZE)
 	{
 		self.rom[start-common::ROM_START:len] = buf[:len];
 	}
@@ -122,20 +121,17 @@ fn void? Cpu.mem_set(&self, uint start, uint len, char[] buf)
 *>
 fn char[]? Cpu.mem_get(&self, uint start, uint len)
 {
-	// logger::info("%s, start: %s, len: %s", $$FUNC, start, len);
-	// cannot have overlap
-	if (start < common::RAM_SIZE && start + len - 1 < common::RAM_SIZE)
+	if (start < common::RAM_SIZE && start + len < common::RAM_SIZE)
 	{
 		return self.ram[start:len];
 	}
-	else if (start >= common::ROM_START && start + len - 1 < common::ROM_START + common::ROM_SIZE)
+	else if (start >= common::ROM_START && start <= common::ROM_START + common::ROM_SIZE && start + len <= common::ROM_START + common::ROM_SIZE)
 	{
 		return self.rom[start-common::ROM_START:len];
 	}
 	else
 	{
 		return self.throw(inter::EXC_PAGE_FAULT_READ, start)?;
-		//unreachable();
 	}
 }
 
@@ -147,46 +143,37 @@ macro Cpu.print_instr(&self, Instruction inst, BitWidth $width, InstructionType 
 	// static char[256] buf;
 	DString str;
 	// str.init(allocator::wrap(&buf));
-	io::printf("%s ", self.cycles);
 	/*str.appendf*/io::printf("SP=%.8X IP=%.8X %-6s %s %-5s ", *self.stack_ptr, *self.inst_ptr, inst.cond.name, $width.name, $inst_name);
 	$switch $type.arg_count():
 		$case 0:
 			// TODO: feature request $break (check if exists first)
 			0;
 		$case 1:
-			// str.appendf(" %s", inst.src.fox32name);
 			io::print(inst.src.fox32name);
-			// TODO: report poor error messages when `@body(#src, #dst)` instead
+			// TODO: report poor error messages when `@foo(; @body(#src, #dst))` instead of  `@foo(; #src, #dst)`
 			self.print_arg(&str, inst, $type, $width, SRC)!!;
 		$case 2:
-			// str.appendf(" %s", inst.src.fox32name);
 			io::print(inst.src.fox32name);
 			self.print_arg(&str, inst, $type, $width, SRC)!!;
-			// str.appendf(",");
 			io::print(", ");
-			// str.appendf(" %s", inst.dst.fox32name);
 			io::print(inst.dst.fox32name);
 			self.print_arg(&str, inst, $type, $width, DST)!!;
 		$default:
 			$error("a");
 	$endswitch
 	io::printn();
-	//io::printn(str.str_view());
 }
 
 macro Cpu.print_arg(&self, DString* str, Instruction inst, InstructionType $inst_type, BitWidth $width, ArgPos $arg)
 {
 	uint offset = @arg_offset($width, inst, $inst_type, $arg);
-	// logger::info("test: %s %s %s %s", $inst_type, $arg, $inst_type.is_bit_op(), offset);
 	switch (inst.$eval($arg.name))
 	{
 		case REG:
 		case REG_PTR:
-			// str.appendf(" %-8s", common::REG_NAMES[self.mem_get(self.inst_ptr_next + offset, 1).get(W8)]);
 			io::printf(" %-8s", common::REG_NAMES[self.mem_get(self.inst_ptr_next + offset, 1)!.get(W8)]);
 		case IMM:
 		case IMM_PTR:
-			//str.appendf(" %.8X", self.mem_get(self.inst_ptr_next + offset, common::PTR_SIZE).get($width));
 			io::printf(" %.8X", self.mem_get(self.inst_ptr_next + offset, common::PTR_SIZE)!.get($width));
 	}
 }
@@ -259,10 +246,12 @@ fn void? Cpu._handle(&self, Interrupt interrupt_vec) @inline
 
 	self._push(W32, *self.inst_ptr)!;
 	self._push(W8, (char)self.flags)!;
+	// it's an interrupt
 	if (interrupt_vec < 256)
 	{
 		self._push(W32, (uint)interrupt_vec)!;
 	}
+	// it's an exception
 	else
 	{
 		assert(self.exception_operand != 0, "it probably shouldn't be zero");
@@ -574,6 +563,7 @@ fn int main(String[] args)
 
 fn fault Cpu.throw(&self, Interrupt exc, uint exception_operand = 0)
 {
+	// logger::info("threw exception %s (%s) at cycle %s", exc.name(), exc, self.cycles);
 	self.exception = true;
 	self.exception_type = exc;
 	if (exc >= 256)
