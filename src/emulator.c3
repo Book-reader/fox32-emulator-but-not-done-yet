@@ -74,6 +74,21 @@ enum OverlayOption : char
 	ENABLE,
 }
 
+bitstruct DiskCommandAddr : uint @littleendian
+{
+	char idx : 0..7;
+	DiskCommand command : 12..15;
+}
+
+enum DiskCommand : char
+{
+	SIZE,
+	BUFFER_PTR,
+	BEGIN_READ,
+	BEGIN_WRITE,
+	REMOVE,
+}
+
 struct Cpu
 {
 	// The address of the current instruction in memory

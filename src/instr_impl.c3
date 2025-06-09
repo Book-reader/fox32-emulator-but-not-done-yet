@@ -2,6 +2,7 @@ module emulator;
 import common;
 import logger;
 import gui;
+import disk;
 
 import std::io;
 import std::math;
@@ -176,6 +177,7 @@ extern fn CInt putchar(CInt c);
 fn void? Cpu.inst_out(&self, Instruction inst) @Inst => self.@setup(inst, W32; #src, #dst)
 {
 	uint dst = #dst;
+	// logger::info("Out: src: %s (0x%.8x), dst: %s (0x%.8x)", #src, #src, dst, dst);
 
 
 	switch (dst)
@@ -202,6 +204,22 @@ fn void? Cpu.inst_out(&self, Instruction inst) @Inst => self.@setup(inst, W32; #
 				case ENABLE:
 					over.enable = #src != 0;
 			}
+		case 0x80001000..0x80005003:
+			DiskCommandAddr opt = (DiskCommandAddr)dst;
+			logger::info("writing %s for disk %s", opt.command, opt.idx);
+			switch (opt.command)
+			{
+				case BUFFER_PTR:
+					disk::set_buffer(#src);
+				case BEGIN_READ:
+					disk::read(self, opt.idx, #src)!!;
+				case BEGIN_WRITE:
+					disk::write(self, opt.idx, #src)!!;
+				case REMOVE:
+					disk::remove(opt.idx)!!;
+				case SIZE:
+					self.error("Cannot write disk option %s with inst_out", opt.command);
+			}
 		// Everything else
 		default:
 			logger::warn("Out to 0x%.8x is not supported yet", dst);
@@ -217,6 +235,7 @@ fn void? Cpu.inst_in(&self, Instruction inst) @Inst => self.@setup(inst, W32; #s
 	// $Type src = #src;
 	// if (dst != 0) self.error("You can't do that");
 	uint src = #src;
+	// logger::info("In: src: %s (0x%.8x), dst: %s (0x%.8x)", src, src, #dst, #dst);
 
 	switch (src)
 	{
@@ -252,7 +271,36 @@ fn void? Cpu.inst_in(&self, Instruction inst) @Inst => self.@setup(inst, W32; #s
 		// mouse position
 		case 0x80000401:
 			self.set_val(W32, inst, DST, (uint)gui::mouse_pos.get())!;
-		// other (TODO: once it's all implemented, make this an error only if it's an error in the reference emulator)
+			// TODO: proper error handling, maybe have a generic `if catch err = inst(), if inst != VM_EXCEPTION return inst?` to only ignore vm exceptions instead of @maydiscard
+			// maybe in the @setup macro have something like this:
+/*
+	macro @setup(...; @body(...))
+	{
+		fault err = @catch(fn void?()
+		{
+			@body(...);
+		}());
+		if (err != VM_EXCEPTION) handle_error(err)!!; // handle_error panics if it can't handle the error (like a disk error) but does nothing if it can (like a page fault *unless* in exception handling already)
+	}
+	// this is quite similar to the C emulator error handling & would replace the existing system in a more robust way
+*/
+		// disks
+		case 0x80001000..0x80005003:
+			DiskCommandAddr opt = (DiskCommandAddr)src;
+			logger::info("reading %s from disk %s", opt.command, opt.idx);
+			switch (opt.command)
+			{
+				case SIZE:
+					self.set_val(W32, inst, DST, (uint)disk::size(opt.idx))!;
+				case BUFFER_PTR:
+					self.set_val(W32, inst, DST, disk::buffer())!;
+
+				case BEGIN_READ:
+				case BEGIN_WRITE:
+				case REMOVE:
+					self.error("Cannot read disk option %s with inst_in", opt.command);
+			}
+		// other (TODO: once it's all implemented, make this an error (only if it's an error in the reference emulator)
 		default:
 			logger::warn("In from 0x%.8x is not supported yet", src);
 			self.set_val(W32, inst, DST, (uint)0)!;
