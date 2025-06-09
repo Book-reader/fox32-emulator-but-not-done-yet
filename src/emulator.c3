@@ -2,6 +2,7 @@ module emulator;
 import common;
 import logger;
 import gui;
+import disk;
 
 import std::io;
 import std::thread;
@@ -348,11 +349,11 @@ fn int main(String[] args)
 		else
 		{*/
 		prog = file::load(alloc, args[1])!!;
-
-		if (args.len > 2)
+		foreach (i, disk : args[1..])
 		{
-			max_cycles = args[2].to_int()!!;
+			disk::insert(disk, i)!!;
 		}
+
 //		}
 	}
 	else
