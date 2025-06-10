@@ -22,9 +22,10 @@ uint buffer_addr;
 
 fn void? insert(String disk_file, usz disk_id)
 {
-	File file = file::open(disk_file, "rb")!;
+	File file = file::open(disk_file, "rb+")!;
 	// TODO: add size method to file in stdlib, or atleast file::size(File)
 	disks[disk_id] = {file, file::get_size(disk_file)!, true};
+	// logger::info("inserted disk filename %s id %s of size %s (0x%.8x)", disk_file, disk_id, disks[disk_id].size, disks[disk_id].size);
 }
 
 fn void? remove(usz disk_id)
@@ -49,27 +50,29 @@ fn void? read(Cpu* cpu, usz disk_id, usz sector)
 {
 	if (!disks[disk_id].mounted) return;
 	File* file = &disks[disk_id].file;
-	file.seek(sector * SECTOR_SIZE)!;
 	char[SECTOR_SIZE] data;
 	// libc::fread(&data, sector * SECTOR_SIZE, data.len, file.file);
 	// TODO: the reference emulator doesn't actually exit on error
+	file.seek(sector * SECTOR_SIZE)!;
 	file.read(&data)!;
-	logger::info("Read data from sector %s idx %s (0x%.8x): %s", sector, sector * SECTOR_SIZE, sector * SECTOR_SIZE, data);
+	// logger::info("Read data from sector %s idx %s (0x%.8x): %s", sector, sector * SECTOR_SIZE, sector * SECTOR_SIZE, data);
+	// TODO: maybe the problem is actually that there is an off-by-one with the buffer address?
 	cpu.mem_set(buffer_addr, SECTOR_SIZE, &data)!;
+	// logger::info("Data at the buffer_addr (0x%.8x): %s", buffer_addr, cpu.mem_get(buffer_addr, SECTOR_SIZE)!);
 }
 
 fn void? write(Cpu* cpu, usz disk_id, usz sector)
 {
-	logger::info("writing sector %s of disk %s", sector, disk_id);
+	// logger::info("writing sector %s of disk %s", sector, disk_id);
 	if (!disks[disk_id].mounted)
 	{
-		logger::info("disk %s is not mounted so cannot be written to", disk_id);
+		// logger::info("disk %s is not mounted so cannot be written to", disk_id);
 		return;
 	}
 	File* file = &disks[disk_id].file;
 	//char[] data = cpu.mem_get(buffer_addr, SECTOR_SIZE)!;
 	file.seek(sector * SECTOR_SIZE)!;
 	file.write(cpu.mem_get(buffer_addr, SECTOR_SIZE)!)!;
-	logger::info("Wrote data into sector %s idx %s (0x%.8x): %s", sector, sector * SECTOR_SIZE, sector * SECTOR_SIZE, cpu.mem_get(buffer_addr, SECTOR_SIZE)!);
+	// logger::info("Wrote data into sector %s idx %s (0x%.8x): %s", sector, sector * SECTOR_SIZE, sector * SECTOR_SIZE, cpu.mem_get(buffer_addr, SECTOR_SIZE)!);
 	// libc::fwrite(data.ptr, sector * SECTOR_SIZE, data.len, file.file);
 }

@@ -77,16 +77,7 @@ enum OverlayOption : char
 bitstruct DiskCommandAddr : uint @littleendian
 {
 	char idx : 0..7;
-	DiskCommand command : 12..15;
-}
-
-enum DiskCommand : char
-{
-	SIZE,
-	BUFFER_PTR,
-	BEGIN_READ,
-	BEGIN_WRITE,
-	REMOVE,
+	uint command : 8..15;
 }
 
 struct Cpu
@@ -364,9 +355,12 @@ fn int main(String[] args)
 		else
 		{*/
 		prog = file::load(alloc, args[1])!!;
-		foreach (i, disk : args[1..])
+		if (args.len > 2)
 		{
-			disk::insert(disk, i)!!;
+			foreach (i, disk : args[2..])
+			{
+				disk::insert(disk, i)!!;
+			}
 		}
 
 //		}

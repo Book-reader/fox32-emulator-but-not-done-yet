@@ -177,7 +177,7 @@ extern fn CInt putchar(CInt c);
 fn void? Cpu.inst_out(&self, Instruction inst) @Inst => self.@setup(inst, W32; #src, #dst)
 {
 	uint dst = #dst;
-	// logger::info("Out: src: %s (0x%.8x), dst: %s (0x%.8x)", #src, #src, dst, dst);
+	// logger::info("Out: src: %.8s (0x%.8x), dst: %.8s (0x%.8x)", #src, #src, dst, dst);
 
 
 	switch (dst)
@@ -206,18 +206,23 @@ fn void? Cpu.inst_out(&self, Instruction inst) @Inst => self.@setup(inst, W32; #
 			}
 		case 0x80001000..0x80005003:
 			DiskCommandAddr opt = (DiskCommandAddr)dst;
-			logger::info("writing %s for disk %s", opt.command, opt.idx);
+			// logger::info("writing %s for disk %s", opt.command, opt.idx);
 			switch (opt.command)
 			{
-				case BUFFER_PTR:
+				// buffer ptr
+				case 0x20:
 					disk::set_buffer(#src);
-				case BEGIN_READ:
+				// begin read
+				case 0x30:
 					disk::read(self, opt.idx, #src)!!;
-				case BEGIN_WRITE:
+				// begin write
+				case 0x40:
 					disk::write(self, opt.idx, #src)!!;
-				case REMOVE:
+				// remove
+				case 0x50:
 					disk::remove(opt.idx)!!;
-				case SIZE:
+				// size + other
+				default:
 					self.error("Cannot write disk option %s with inst_out", opt.command);
 			}
 		// Everything else
@@ -235,7 +240,7 @@ fn void? Cpu.inst_in(&self, Instruction inst) @Inst => self.@setup(inst, W32; #s
 	// $Type src = #src;
 	// if (dst != 0) self.error("You can't do that");
 	uint src = #src;
-	// logger::info("In: src: %s (0x%.8x), dst: %s (0x%.8x)", src, src, #dst, #dst);
+	// logger::info("In: src: %.8s (0x%.8x), dst: %.8s (0x%.8x)", src, src, #dst, #dst);
 
 	switch (src)
 	{
@@ -287,17 +292,19 @@ fn void? Cpu.inst_in(&self, Instruction inst) @Inst => self.@setup(inst, W32; #s
 		// disks
 		case 0x80001000..0x80005003:
 			DiskCommandAddr opt = (DiskCommandAddr)src;
-			logger::info("reading %s from disk %s", opt.command, opt.idx);
+			// logger::info("In: src: %.8s (0x%.8x), dst: %.8s (0x%.8x)", src, src, #dst, #dst);
+			// logger::info("reading %s from disk %s", opt.command, opt.idx);
 			switch (opt.command)
 			{
-				case SIZE:
+				// size
+				case 0x10:
 					self.set_val(W32, inst, DST, (uint)disk::size(opt.idx))!;
-				case BUFFER_PTR:
+				// buffer ptr
+				case 0x20:
 					self.set_val(W32, inst, DST, disk::buffer())!;
 
-				case BEGIN_READ:
-				case BEGIN_WRITE:
-				case REMOVE:
+				// everything else
+				default:
 					self.error("Cannot read disk option %s with inst_in", opt.command);
 			}
 		// other (TODO: once it's all implemented, make this an error (only if it's an error in the reference emulator)
