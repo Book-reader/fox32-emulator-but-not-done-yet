@@ -132,6 +132,9 @@ void main()
 		// moving this after the endDrawing call fixes it *most* of the time, still happens sometimes tho
 		// io::eprintn("vsync");
 		// logger::info("Mouse state at end of frame: %.32b", (uint)mouse_state.get()!!);
+
+		// if for some reason the cpu can't complete a single vsync interrupt per frame, wait a little
+		while (@unlikely(@atomic_load(*arg.vsync_int))) thread::sleep_ms(1);
 		@atomic_store(*arg.vsync_int, true);
 		rl::endDrawing();
 
