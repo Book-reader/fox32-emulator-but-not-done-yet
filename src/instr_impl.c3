@@ -230,9 +230,9 @@ fn void? Cpu.inst_out(&self, Instruction inst) @Inst => self.@setup(inst, W32; #
 			MouseState src = (MouseState)#src;
 			(void)gui::mouse_state.@use(; #val)
 			{
-				io::printfn("%s SET: button before: %.3b, value: %.32b", self.cycles, (uint)#val, (uint)#src);
+				// io::printfn("%s SET: button before: %.3b, value: %.32b", self.cycles, (uint)#val, (uint)#src);
 				#val = {.pressed = src.pressed, .released = src.released, .held = src.held};
-				io::printfn("%s SET: button after: %.3b", self.cycles, (uint)#val);
+				// io::printfn("%s SET: button after: %.3b", self.cycles, (uint)#val);
 			};
 			// (void)gui::mouse_state.set({.pressed = src.pressed, .released = src.released, .held = src.held});
 			// logger::info("mouse button state after out: %.32b", (uint)gui::mouse_state.get()!!);
@@ -246,6 +246,7 @@ fn void? Cpu.inst_out(&self, Instruction inst) @Inst => self.@setup(inst, W32; #
 	}
 }
 
+import std::time;
 // TODO: match https://github.com/fox32-arch/fox32/blob/main/src/bus.c#L30
 fn void? Cpu.inst_in(&self, Instruction inst) @Inst => self.@setup(inst, W32; #src, #dst)
 {
@@ -294,7 +295,7 @@ fn void? Cpu.inst_in(&self, Instruction inst) @Inst => self.@setup(inst, W32; #s
 			dst.held = ms.held;
 			io::printfn("GET: value after: %.32b", (uint)dst);*/
 			uint st = (uint)gui::mouse_state.get()!!;
-			io::printfn("%s GET: button state: %.3b", self.cycles, st);
+			// io::printfn("%s GET: button state: %.3b", self.cycles, st);
 			self.set_val(W32, inst, DST, st)!;
 		// mouse position
 		case 0x80000401:
@@ -330,6 +331,11 @@ fn void? Cpu.inst_in(&self, Instruction inst) @Inst => self.@setup(inst, W32; #s
 				default:
 					self.error("Cannot read disk option %s with inst_in", opt.command);
 			}
+		// ms since startup (temp hack)
+		case 0x80000706:
+			uint time = (uint)((NanoDuration)clock::now()).to_ms();
+			// io::printfn("time: %s", time);
+			self.set_val(W32, inst, DST, time)!;
 		// other (TODO: once it's all implemented, make this an error (only if it's an error in the reference emulator)
 		default:
 			logger::warn("In from 0x%.8x is not supported yet", src);
@@ -433,7 +439,7 @@ fn void? Cpu.inst_srl(&self, Instruction inst) @Inst => self.@setup_w(inst; BitW
 fn void? Cpu.inst_bts(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
 {
 	$Type res = #dst & (1 << #src);
-	logger::info("testing bit %s of %.32b, result: %.32b", #src, #dst, res);
+	// logger::info("testing bit %s of %.32b, result: %.32b", #src, #dst, res);
 	// self.set_val($width, inst, DST, res)!;
 	self.flags.zero = res == 0;
 }
