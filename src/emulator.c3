@@ -473,6 +473,9 @@ fn int main(String[] args)
 			case inst::MUL:
 				cpu.inst_mul(inst);
 				nextcase inst::GET;
+			case inst::IMUL:
+				cpu.inst_imul(inst);
+				nextcase inst::GET;
 			case inst::DIV:
 				cpu.inst_div(inst);
 				nextcase inst::GET;

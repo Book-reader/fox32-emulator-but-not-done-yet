@@ -77,6 +77,18 @@ fn void? Cpu.inst_mul(&self, Instruction inst) @Inst => self.@setup_w(inst; BitW
 	self.set_val($width, inst, DST, res)!;
 }
 
+fn void? Cpu.inst_imul(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
+{
+	var $IType = $width.itype;
+	logger::debug("multiplying %s and %s", ($IType)#dst, ($IType)#src);
+	$IType res @noinit;
+	// This also sets res
+	self.flags.carry = math::overflow_mul(($IType)#dst, ($IType)#src, &res);
+	self.flags.zero = res == 0;
+	self.set_val($width, inst, DST, ($Type)res)!;
+}
+
+
 // TODO: merge div, idiv, rem, irem, etc with a macro/generic that just replaces the operand and type (signed vs unsigned)
 fn void? Cpu.inst_div(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
 {

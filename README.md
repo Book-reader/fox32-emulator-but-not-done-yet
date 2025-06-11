@@ -10,6 +10,8 @@
 > Don't expect the code to be of great quality for now.
 > I'll clean it up later
 
+![screenshot of fox33 running some applications](Screenshot from 2025-06-11 22-12-47.png)
+
 ## todo:
 
 - [x] Fix that `0x04000000` bug (so painful :()
@@ -18,15 +20,17 @@
 - [x] Implement Gui overlays
 - [ ] I/O stuff:
   - [x] mounting disks
-  - [ ] mouse
+  - [x] mouse
   - [ ] keyboard
   - [ ] rtc
   - [ ] etc
 - [x] Interrupts/Exceptions
 - [x] boot fox32os
-- [ ] Get fox32rom functioning completely
+- [x] Get fox32rom functioning completely
 - [ ] Get fox32os functioning completely
 - [ ] Implement all instructions fully
+- [ ] MMU
+- [ ] swap sp so I can run minita
 - [ ] Any other things I can think of
 
 ## building:
