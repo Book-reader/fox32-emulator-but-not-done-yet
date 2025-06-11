@@ -42,7 +42,7 @@ $ c3c build -D <build flag> -O5
 ### build flags:
  - DEBUG -> print almost too many debug logs
  - PERF -> print the time taken to execute 30M instructions (target <= 1 second for 30Mhz)
- - SHUTUP -> silence runtime warnings, mostly unimplemented methods
+ - NOWARN -> silence runtime warnings, mostly unimplemented methods
  - FOXLOG -> print debug logs in the exact same format as the fox32 reference emulator
 
 ## usage:
