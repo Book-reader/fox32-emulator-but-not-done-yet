@@ -534,6 +534,9 @@ fn int main(String[] args)
 			case inst::LOOP:
 				cpu.inst_loop(inst);
 				nextcase inst::GET;
+			case inst::RLOOP:
+				cpu.inst_rloop(inst);
+				nextcase inst::GET;
 			case inst::PUSH:
 				cpu.inst_push(inst);
 				nextcase inst::GET;

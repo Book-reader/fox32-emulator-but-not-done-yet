@@ -397,6 +397,21 @@ fn void? Cpu.inst_loop(&self, Instruction inst) @Inst => self.@setup(inst, W32, 
 	}
 }
 
+fn void? Cpu.inst_rloop(&self, Instruction inst) @Inst => self.@setup_w(inst, false; BitWidth $width, $Type, #src, #dst)
+{
+	if ((*self.loop_ptr -= 1) != 0)
+	{
+		logger::debug("RLooping by %s", ($typefrom($width.itype))#src);
+		self.inst_ptr_next = *self.inst_ptr + ($typefrom($width.itype))#src;
+	}
+	else
+	{
+		logger::debug("Not rlooping");
+		self.move_forward(W32, inst::RLOOP, inst);
+	}
+}
+
+
 fn void? Cpu.inst_push(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
 {
 	logger::debug("Pushing %s %.8x", #src, #src);
