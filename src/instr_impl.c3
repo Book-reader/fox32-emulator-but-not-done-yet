@@ -225,6 +225,21 @@ fn void? Cpu.inst_out(&self, Instruction inst) @Inst => self.@setup(inst, W32; #
 				default:
 					self.error("Cannot write disk option %s with inst_out", opt.command);
 			}
+		// mouse buttons
+		case 0x80000400:
+			MouseState src = (MouseState)#src;
+			(void)gui::mouse_state.@use(; #val)
+			{
+				io::printfn("SET: button before: %.3b, value: %.32b", (uint)#val, (uint)#src);
+				#val = {.pressed = src.pressed, .released = src.released, .held = src.held};
+				io::printfn("SET: button after: %.3b", (uint)#val);
+			};
+			// (void)gui::mouse_state.set({.pressed = src.pressed, .released = src.released, .held = src.held});
+			// logger::info("mouse button state after out: %.32b", (uint)gui::mouse_state.get()!!);
+			// (void)gui::mouse_state.set((MouseState)(#src | 0b111));
+		// mouse position
+		case 0x80000401:
+			(void)gui::mouse_pos.set((SplitInt)#src);
 		// Everything else
 		default:
 			logger::warn("Out to 0x%.8x is not supported yet", dst);
@@ -271,11 +286,17 @@ fn void? Cpu.inst_in(&self, Instruction inst) @Inst => self.@setup(inst, W32; #s
 			self.set_val(W32, inst, DST, (uint)ret_val)!;
 		// mouse buttons
 		case 0x80000400:
-			logger::warn("mouse buttons are not supported yet");
-			nextcase default;
+			MouseState ms = gui::mouse_state.get()!!;
+			MouseState dst = (MouseState)#dst;
+			io::printfn("GET: button before: %.3b, value before: %.32b", (uint)ms, (uint)dst);
+			dst.pressed |= ms.pressed;
+			dst.released |= ms.released;
+			dst.held = ms.held;
+			io::printfn("GET: value after: %.32b", (uint)dst);
+			self.set_val(W32, inst, DST, (uint)dst)!;
 		// mouse position
 		case 0x80000401:
-			self.set_val(W32, inst, DST, (uint)gui::mouse_pos.get())!;
+			self.set_val(W32, inst, DST, (uint)gui::mouse_pos.get()!!)!;
 			// TODO: proper error handling, maybe have a generic `if catch err = inst(), if inst != VM_EXCEPTION return inst?` to only ignore vm exceptions instead of @maydiscard
 			// maybe in the @setup macro have something like this:
 /*

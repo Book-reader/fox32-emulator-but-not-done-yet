@@ -2,38 +2,30 @@ module gui;
 import emulator;
 import common;
 import logger;
+import atom;
 
 import std::io;
 import std::thread;
 import raylib5::rl;
 
 char[common::BG_FB_SIZE] empty_overlay;
-struct MousePos
+
+bitstruct MouseState : uint @littleendian
 {
-	Mutex mutex;
-	SplitInt pos;
+	bool pressed : 0;
+	bool released : 1;
+	bool held : 2;
 }
 
-fn SplitInt MousePos.get(&self)
-{
-	self.mutex.lock()!!;
-	defer (void)self.mutex.unlock();
-	return self.pos;
-}
-
-fn void MousePos.set(&self, uint x, uint y)
-{
-	self.mutex.lock()!!;
-	defer (void)self.mutex.unlock();
-	self.pos = {x, y};
-}
-
-MousePos mouse_pos;
+Atom {SplitInt} mouse_pos;
+Atom {MouseState} mouse_state;
 
 fn int run_gui(void* _arg) => @pool_init(mem, 4096, allocator::temp_allocator_buffer_size)
 {
-	mouse_pos.mutex.init()!!;
-	defer (void)mouse_pos.mutex.destroy();
+	mouse_pos.init()!!;
+	defer (void)mouse_pos.destroy();
+	mouse_state.init()!!;
+	defer (void)mouse_state.destroy();
 
 	ThreadData* arg = (ThreadData*)_arg;
 	Cpu* cpu = arg.cpu;
@@ -95,9 +87,28 @@ void main()
 	{
 		rl::beginDrawing();
 		{
+			// logger::info("Mouse state at start of frame: %.32b", (uint)mouse_state.get()!!);
 			Vector2 pos = rl::getMousePosition();
-			mouse_pos.set((uint)pos.x.clamp(0, 640), (uint)pos.y.clamp(0, 480));
+			(void)mouse_pos.set({(uint)pos.x.clamp(0, 640), (uint)pos.y.clamp(0, 480)});
 			// logger::debug("set mouse pos to <%s, %s>", mouse_pos.get().first, mouse_pos.get().second);
+			if (rl::isMouseButtonPressed(LEFT))
+			{
+				// logger::info("Mouse pressed/held");
+				(void)mouse_state.@use(; #val)
+				{
+					#val.pressed = true;
+					#val.held = true;
+				};
+			}
+			else if (rl::isMouseButtonReleased(LEFT))
+			{
+				// logger::info("Mouse released");
+				(void)mouse_state.@use(; #val)
+				{
+					#val.held = false;
+					#val.released = true;
+				};
+			}
 		}
 		rl::clearBackground(rl::BLACK);
 		rl::updateTexture(bg_fb, cpu.mem_get(common::BG_FB, common::BG_FB_SIZE)!!);
@@ -120,6 +131,7 @@ void main()
 
 		// moving this after the endDrawing call fixes it *most* of the time, still happens sometimes tho
 		// io::eprintn("vsync");
+		// logger::info("Mouse state at end of frame: %.32b", (uint)mouse_state.get()!!);
 		@atomic_store(*arg.vsync_int, true);
 		rl::endDrawing();
 
@@ -134,4 +146,45 @@ void main()
 	logger::error("Gui closed, exiting");
 	@atomic_store(*running, false);
 	return 0;
+}
+
+module atom {Type};
+import std::thread;
+
+struct Atom
+{
+	Mutex mutex;
+	Type val;
+}
+
+fn Type? Atom.get(&self)
+{
+	self.mutex.lock()!;
+	defer (void)self.mutex.unlock();
+	return self.val;
+}
+
+fn void? Atom.set(&self, Type val)
+{
+	self.mutex.lock()!;
+	defer (void)self.mutex.unlock();
+	self.val = val;
+}
+
+fn void? Atom.init(&self, Type val = {})
+{
+	self.mutex.init()!;
+	self.val = val;
+}
+
+fn void? Atom.destroy(&self)
+{
+	self.mutex.destroy()!;
+}
+
+macro void? Atom.@use(&self; @body(#val))
+{
+	self.mutex.lock()!;
+	defer (void)self.mutex.unlock();
+	@body(self.val);
 }
