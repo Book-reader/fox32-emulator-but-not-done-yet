@@ -16,8 +16,14 @@
 - [x] Run fox32rom successfully
 - [x] Initial Gui & see fox32rom framebuffer
 - [x] Implement Gui overlays
-- [ ] I/O stuff: mounting disks, mouse, rtc, etc
+- [ ] I/O stuff:
+  - [x] mounting disks
+  - [ ] mouse
+  - [ ] keyboard
+  - [ ] rtc
+  - [ ] etc
 - [x] Interrupts/Exceptions
+- [x] boot fox32os
 - [ ] Get fox32rom functioning completely
 - [ ] Get fox32os functioning completely
 - [ ] Implement all instructions fully
