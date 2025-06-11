@@ -286,14 +286,15 @@ fn void? Cpu.inst_in(&self, Instruction inst) @Inst => self.@setup(inst, W32; #s
 			self.set_val(W32, inst, DST, (uint)ret_val)!;
 		// mouse buttons
 		case 0x80000400:
-			MouseState ms = gui::mouse_state.get()!!;
+			/*MouseState ms = gui::mouse_state.get()!!;
 			MouseState dst = (MouseState)#dst;
 			io::printfn("GET: button before: %.3b, value before: %.32b", (uint)ms, (uint)dst);
 			dst.pressed |= ms.pressed;
 			dst.released |= ms.released;
 			dst.held = ms.held;
-			io::printfn("GET: value after: %.32b", (uint)dst);
-			self.set_val(W32, inst, DST, (uint)dst)!;
+			io::printfn("GET: value after: %.32b", (uint)dst);*/
+			io::printfn("GET: button state: %.3b", (uint)gui::mouse_state.get()!!);
+			self.set_val(W32, inst, DST, (uint)gui::mouse_state.get()!!)!;
 		// mouse position
 		case 0x80000401:
 			self.set_val(W32, inst, DST, (uint)gui::mouse_pos.get()!!)!;
