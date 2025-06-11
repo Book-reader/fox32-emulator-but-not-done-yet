@@ -10,7 +10,7 @@
 > Don't expect the code to be of great quality for now.
 > I'll clean it up later
 
-![screenshot of fox33 running some applications](Screenshot from 2025-06-11 22-12-47.png)
+![screenshot of fox33 running some applications](screenshot.png)
 
 ## todo:
 
