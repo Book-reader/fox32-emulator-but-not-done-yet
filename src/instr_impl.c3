@@ -348,6 +348,9 @@ fn void? Cpu.inst_in(&self, Instruction inst) @Inst => self.@setup(inst, W32; #s
 			uint time = (uint)((NanoDuration)clock::now()).to_ms();
 			// io::printfn("time: %s", time);
 			self.set_val(W32, inst, DST, time)!;
+		// read from key queue
+		case 0x80000500:
+			self.set_val(W32, inst, DST, gui::get_key())!;
 		// other (TODO: once it's all implemented, make this an error (only if it's an error in the reference emulator)
 		default:
 			logger::warn("In from 0x%.8x is not supported yet", src);
