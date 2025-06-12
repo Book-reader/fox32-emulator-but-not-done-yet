@@ -18,19 +18,21 @@
 - [x] Run fox32rom successfully
 - [x] Initial Gui & see fox32rom framebuffer
 - [x] Implement Gui overlays
-- [ ] I/O stuff:
+- [x] I/O stuff:
   - [x] mounting disks
   - [x] mouse
-  - [ ] keyboard
-  - [ ] rtc
-  - [ ] etc
+  - [x] keyboard
+  - [x] rtc
 - [x] Interrupts/Exceptions
 - [x] boot fox32os
 - [x] Get fox32rom functioning completely
-- [ ] Get fox32os functioning completely
+- [x] Get fox32os functioning completely
+  - [ ] get all fox32os apps functioning (only missing some simple instructions)
 - [ ] Implement all instructions fully
 - [ ] MMU
 - [ ] swap sp so I can run minita
+- [ ] internal refactoring of error handling
+- [ ] refactor convenience macros to be more convenient & less awfully hacky (they will bever be entirely hack free tho (cry about my overuse of macros lerno >:3))
 - [ ] Any other things I can think of
 
 ## building:
@@ -48,5 +50,5 @@ $ c3c build -D <build flag> -O5
 ## usage:
 
 ```console
-$ ./build/fox33 <boot rom> <cpu cycles before shutdown (optional)>
+$ ./build/fox33 <boot rom> <disk0> <disk1> <disk2> <disk3> <index out of bounds error>
 ```
