@@ -6,6 +6,8 @@ import disk;
 
 import std::io;
 import std::math;
+import std::time::datetime;
+import libc;
 
 attrdef @Inst = @inline, @maydiscard;
 
@@ -258,7 +260,6 @@ fn void? Cpu.inst_out(&self, Instruction inst) @Inst => self.@setup(inst, W32; #
 	}
 }
 
-import std::time;
 // TODO: match https://github.com/fox32-arch/fox32/blob/main/src/bus.c#L30
 fn void? Cpu.inst_in(&self, Instruction inst) @Inst => self.@setup(inst, W32; #src, #dst)
 {
@@ -343,14 +344,40 @@ fn void? Cpu.inst_in(&self, Instruction inst) @Inst => self.@setup(inst, W32; #s
 				default:
 					self.error("Cannot read disk option %s with inst_in", opt.command);
 			}
-		// ms since startup (temp hack)
-		case 0x80000706:
-			uint time = (uint)((NanoDuration)clock::now()).to_ms();
-			// io::printfn("time: %s", time);
-			self.set_val(W32, inst, DST, time)!;
 		// read from key queue
 		case 0x80000500:
 			self.set_val(W32, inst, DST, gui::get_key())!;
+		// RTC & uptime
+		case 0x80000700..0x80000706:
+			ClockOption opt = (ClockOption)src;
+			TzDateTime time = datetime::now().to_local();
+			switch (opt.type)
+			{
+				case YEAR:
+					self.set_val(W32, inst, DST, (uint)time.year)!;
+				case MONTH:
+					self.set_val(W32, inst, DST, (uint)time.month.ordinal)!;
+				case DAY:
+					self.set_val(W32, inst, DST, (uint)time.day)!;
+				case HOUR:
+					self.set_val(W32, inst, DST, (uint)time.hour)!;
+				case MINUTE:
+					self.set_val(W32, inst, DST, (uint)time.min)!;
+				case SECOND:
+					self.set_val(W32, inst, DST, (uint)time.sec)!;
+				case MS_SINCE_STARTUP:
+					self.uptime += self.clock.mark();
+					self.set_val(W32, inst, DST, (uint)self.uptime.to_ms())!;
+				case DAYLIGHT_SAVINGS:
+					Tm tm @noinit;
+					Time_t time_t = (Time_t)time.time.to_seconds();
+					libc::localtime_r(&time_t, &tm);
+					assert(time.day == tm.tm_mday);
+					assert(time.year == tm.tm_year + 1900);
+					self.set_val(W32, inst, DST, (uint)tm.tm_isdst)!;
+
+
+			}
 		// other (TODO: once it's all implemented, make this an error (only if it's an error in the reference emulator)
 		default:
 			logger::warn("In from 0x%.8x is not supported yet", src);

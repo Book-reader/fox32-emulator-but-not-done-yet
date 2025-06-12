@@ -80,6 +80,23 @@ bitstruct DiskCommandAddr : uint @littleendian
 	uint command : 8..15;
 }
 
+bitstruct ClockOption : uint @littleendian
+{
+	ClockOptionType type : 0..7;
+}
+
+enum ClockOptionType : char
+{
+	YEAR,
+	MONTH,
+	DAY,
+	HOUR,
+	MINUTE,
+	SECOND,
+	MS_SINCE_STARTUP,
+	DAYLIGHT_SAVINGS,
+}
+
 struct Cpu
 {
 	// The address of the current instruction in memory
@@ -102,6 +119,9 @@ struct Cpu
 	bool exception;
 	Interrupt exception_type;
 	uint exception_operand;
+	Clock clock;
+	// only incremented when Cpu.inst_in gets the uptime, not for general use
+	NanoDuration uptime;
 }
 
 <*
@@ -382,6 +402,7 @@ fn int main(String[] args)
 	$endif
 
 	Instruction inst;
+	cpu.clock = clock::now();
 //	while (running)
 	{
 		// TODO: maybe make each Cpu.inst_... a function in an associated value for an enum, so I could just do inst.execute()
