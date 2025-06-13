@@ -335,6 +335,13 @@ struct ThreadData
 // it will make memory to memory operations faster & I can have a reg->reg version as well
 fn int main(String[] args)
 {
+	$for var $i = 0; $i < char.max; $i++:
+		InstructionType $is = (InstructionType)$i;
+		$if inst::is_valid_instruction($is) &&& !$defined(Cpu.$eval("inst_" +++ @str_lower(inst::NAME[$is]))):
+			$echo "Warning: instruction " +++ inst::NAME[$is] +++ " is not implemented yet";
+		$endif
+	$endfor
+
 	Cpu cpu;
 	cpu.init();
 	defer cpu.deinit();
@@ -592,7 +599,7 @@ fn int main(String[] args)
 				cpu.inst_and(inst);
 				nextcase inst::GET;
 			default:
-				cpu.error("Instruction %s is not implemented yet", inst.type.get_name());
+				cpu.error("Instruction %s is not implemented yet", inst::NAME[inst.type]);
 				nextcase inst::BREAK;
 		}
 	}

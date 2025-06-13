@@ -52,7 +52,7 @@ $assert Instruction.sizeof == INST_SIZE;
 fn usz? Instruction.to_format(&self, Formatter* formatter) @dynamic
 {
 	usz? n;
-	String name = self.type.get_name();
+	String name = inst::NAME[self.type];
 	if (self.cond.ordinal >= Condition.values.len || self.src.ordinal >= ArgType.values.len || self.dst.ordinal >= ArgType.values.len || self.width.ordinal >= BitWidth.values.len || name == "INVALID")
 	{
 		n += formatter.printf("<INVALID>");
@@ -60,7 +60,7 @@ fn usz? Instruction.to_format(&self, Formatter* formatter) @dynamic
 	else
 	{
 		if (self.cond != ALWAYS) n += formatter.printf("%s ", self.cond);
-		n += formatter.printf("%s.%s {%s->%s:%s}", self.type.get_name(), self.width, self.src, self.dst, self.has_offset);
+		n += formatter.printf("%s.%s {%s->%s:%s}", name, self.width, self.src, self.dst, self.has_offset);
 	}
 	return n;
 }
@@ -84,7 +84,7 @@ enum ArgType : char (String fox32name)
 	IMM_PTR = "IMMPTR",
 }
 
-typedef InstructionType = char;
+typedef InstructionType = inline char;
 typedef Interrupt = inline ushort;
 faultdef VM_EXCEPTION @builtin;
 
@@ -378,113 +378,58 @@ fn usz InstructionType.arg_count_rt(self) @deprecated("pls don't use it has runt
 	}
 }
 
-fn String InstructionType.get_name(self)
-{
-	switch (self)
-	{
-		case NOP:
-			return "NOP";
-		case ADD:
-			return "ADD";
-		case MUL:
-			return "MUL";
-		case AND:
-			return "AND";
-		case SLA:
-			return "SLA";
-		case SRA:
-			return "SRA";
-		case BSE:
-			return "BSE";
-		case CMP:
-			return "CMP";
-		case JMP:
-			return "JMP";
-		case RJMP:
-			return "RJMP";
-		case PUSH:
-			return "PUSH";
-		case IN:
-			return "IN";
-		case ISE:
-			return "ISE";
-		case MSE:
-			return "MSE";
-		case HALT:
-			return "HALT";
-		case INC:
-			return "INC";
-		case OR:
-			return "OR";
-		case IMUL:
-			return "IMUL";
-		case SRL:
-			return "SRL";
-		case BCL:
-			return "BCL";
-		case MOV:
-			return "MOV";
-		case CALL:
-			return "CALL";
-		case RCALL:
-			return "RCALL";
-		case POP:
-			return "POP";
-		case OUT:
-			return "OUT";
-		case ICL:
-			return "ICL";
-		case MCL:
-			return "MCL";
-		case BRK:
-			return "BRK";
-		case SUB:
-			return "SUB";
-		case DIV:
-			return "DIV";
-		case XOR:
-			return "XOR";
-		case ROL:
-			return "ROL";
-		case ROR:
-			return "ROR";
-		case BTS:
-			return "BTS";
-		case MOVZ:
-			return "MOVZ";
-		case LOOP:
-			return "LOOP";
-		case RLOOP:
-			return "RLOOP";
-		case RET:
-			return "RET";
-		case INT:
-			return "INT";
-		case TLB:
-			return "TLB";
-		case DEC:
-			return "DEC";
-		case REM:
-			return "REM";
-		case NOT:
-			return "NOT";
-		case IDIV:
-			return "IDIV";
-		case IREM:
-			return "IREM";
-		case ICMP:
-			return "ICMP";
-		case RTA:
-			return "RTA";
-		case RETI:
-			return "RETI";
-		case FLP:
-			return "FLP";
-		default:
-			// logger::warn("unknown or unsupported InstructionType %s", self);
-			return "INVALID";
-	}
-}
+const String[char.max] NAME = {
+	[0..char.max] = "INVALID",
+	[NOP] = "NOP",
+	[ADD] = "ADD",
+	[MUL] = "MUL",
+	[AND] = "AND",
+	[SLA] = "SLA",
+	[SRA] = "SRA",
+	[BSE] = "BSE",
+	[CMP] = "CMP",
+	[JMP] = "JMP",
+	[RJMP] = "RJMP",
+	[PUSH] = "PUSH",
+	[IN] = "IN",
+	[ISE] = "ISE",
+	[MSE] = "MSE",
+	[HALT] = "HALT",
+	[INC] = "INC",
+	[OR] = "OR",
+	[IMUL] = "IMUL",
+	[SRL] = "SRL",
+	[BCL] = "BCL",
+	[MOV] = "MOV",
+	[CALL] = "CALL",
+	[RCALL] = "RCALL",
+	[POP] = "POP",
+	[OUT] = "OUT",
+	[ICL] = "ICL",
+	[MCL] = "MCL",
+	[BRK] = "BRK",
+	[SUB] = "SUB",
+	[DIV] = "DIV",
+	[XOR] = "XOR",
+	[ROL] = "ROL",
+	[ROR] = "ROR",
+	[BTS] = "BTS",
+	[MOVZ] = "MOVZ",
+	[LOOP] = "LOOP",
+	[RLOOP] = "RLOOP",
+	[RET] = "RET",
+	[INT] = "INT",
+	[TLB] = "TLB",
+	[DEC] = "DEC",
+	[REM] = "REM",
+	[NOT] = "NOT",
+	[IDIV] = "IDIV",
+	[IREM] = "IREM",
+	[ICMP] = "ICMP",
+	[RTA] = "RTA",
+	[RETI] = "RETI",
+	[FLP] = "FLP",
+};
 
 module common::inter;
 

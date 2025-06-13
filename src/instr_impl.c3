@@ -467,16 +467,7 @@ fn void? Cpu.inst_pop(&self, Instruction inst) @Inst => self.@setup_w(inst; BitW
 	self.set_val($width, inst, SRC, self._pop($width)!)!;
 }
 
-fn void? Cpu.inst_sla(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
-{
-	// bit manipulation instructions always have W8 src bc 255 > 32bits
-	$Type res = #dst << #src;
-
-	// self.error("sla: src = %.8x, dst = %.8x, dst << src = %.8x, (dst) << (src) = %.8x", #src, #dst, res, (#dst) << (#src));
-
-	self.set_val($width, inst, DST, res)!;
-	self.flags.zero = res == 0;
-}
+fn void? Cpu.inst_sla(&self, Instruction inst) @Inst => @bit_op_inst(self, inst, op_sla);
 
 fn void? Cpu.inst_sra(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
 {
@@ -486,46 +477,33 @@ fn void? Cpu.inst_sra(&self, Instruction inst) @Inst => self.@setup_w(inst; BitW
 	self.flags.zero = res == 0;
 }
 
-fn void? Cpu.inst_srl(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
-{
-	$Type res = #dst >> #src;
-	self.set_val($width, inst, DST, res)!;
-	self.flags.zero = res == 0;
-}
+fn void? Cpu.inst_srl(&self, Instruction inst) @Inst => @bit_op_inst(self, inst, op_srl);
 
 fn void? Cpu.inst_bts(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
 {
 	$Type res = #dst & (1 << #src);
-	// logger::info("testing bit %s of %.32b, result: %.32b", #src, #dst, res);
-	// self.set_val($width, inst, DST, res)!;
 	self.flags.zero = res == 0;
 }
 
-fn void? Cpu.inst_bse(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
+fn void? Cpu.inst_bse(&self, Instruction inst) @Inst => @bit_op_inst(self, inst, op_bse);
+
+fn void? Cpu.inst_bcl(&self, Instruction inst) @Inst => @bit_op_inst(self, inst, op_bcl);
+
+fn void? Cpu.inst_or(&self, Instruction inst) @Inst => @bit_op_inst(self, inst, op_or);
+
+fn void? Cpu.inst_and(&self, Instruction inst) @Inst => @bit_op_inst(self, inst, op_and);
+
+
+macro @bit_op_inst(Cpu* cpu, Instruction inst, #op) => cpu.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
 {
-	$Type res = #dst | (1 << #src);
-	self.set_val($width, inst, DST, res)!;
-	self.flags.zero = res == 0;
+	$Type res = ($Type)#op(#dst, #src);
+	cpu.set_val($width, inst, DST, res)!;
+	cpu.flags.zero = res == 0;
 }
 
-fn void? Cpu.inst_bcl(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
-{
-	$Type res = #dst & ~(1 << #src);
-	self.set_val($width, inst, DST, res)!;
-	self.flags.zero = res == 0;
-}
-
-fn void? Cpu.inst_or(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
-{
-	$Type res = #dst | #src;
-	self.set_val($width, inst, DST, res)!;
-	self.flags.zero = res == 0;
-}
-
-fn void? Cpu.inst_and(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
-{
-	$Type res = #dst & #src;
-	self.set_val($width, inst, DST, res)!;
-	self.flags.zero = res == 0;
-}
-
+macro op_or(a, b) => (a | b);
+macro op_and(a, b) => (a & b);
+macro op_bcl(a, b) => a & ~(1 << b);
+macro op_bse(a, b) => a | (1 << b);
+macro op_srl(a, b) => a >> b;
+macro op_sla(a, b) => a << b;
