@@ -877,12 +877,15 @@ macro uint arg_size(Instruction inst, InstructionType $type, ArgPos $arg, BitWid
 	}
 }
 
+<*
+ @require $type.arg_count() >= $arg.idx : "tried to access a arg that instruction doesn't have :("
+*>
 macro uint @arg_offset(BitWidth $width, Instruction inst, InstructionType $type, ArgPos $arg) => @select($arg == SRC, 0, arg_size(inst, $type, SRC, $width));
 
-enum ArgPos : (String name)
+enum ArgPos : (String name, usz idx)
 {
-	SRC = "src",
-	DST = "dst",
+	SRC = { "src", 1 },
+	DST = { "dst", 2 },
 }
 
 <*

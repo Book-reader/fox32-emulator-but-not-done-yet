@@ -486,7 +486,7 @@ fn void? Cpu.inst_pop(&self, Instruction inst) @Inst => self.@setup_w(inst; BitW
 fn void? Cpu.inst_not(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
 {
 	$Type res = ~#src;
-	self.set_val($width, inst, DST, res)!;
+	self.set_val($width, inst, SRC, res)!;
 	self.flags.zero = res == 0;
 }
 
