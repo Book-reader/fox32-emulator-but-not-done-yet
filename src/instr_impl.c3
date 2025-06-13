@@ -13,6 +13,22 @@ attrdef @Inst = @inline, @maydiscard;
 
 // NOTE: #src and #dst are FUNCTIONS that will be called EVERY TIME they are used
 // this is fine when debug printing is enabled, but not otherwise
+fn void? Cpu.inst_brk(&self, Instruction inst) @Inst => self.@setup(inst, W32; #src, #dst)
+{
+	// self.move_forward(W32, inst::BRK, inst);
+	self.throw(inter::EXC_BREAK);
+}
+
+fn void? Cpu.inst_mcl(&self, Instruction inst) @Inst => self.@setup(inst, W32; #src, #dst)
+{
+	self.mmu_enabled = false;
+}
+
+fn void? Cpu.inst_mse(&self, Instruction inst) @Inst => self.@setup(inst, W32; #src, #dst)
+{
+	self.mmu_enabled = true;
+}
+
 fn void? Cpu.inst_ise(&self, Instruction inst) @Inst => self.@setup(inst, W32; #src, #dst)
 {
 	self.flags.interrupt = true;
@@ -502,6 +518,9 @@ fn void? Cpu.inst_and(&self, Instruction inst) @Inst => @bit_op_inst(self, inst,
 
 fn void? Cpu.inst_xor(&self, Instruction inst) @Inst => @bit_op_inst(self, inst, op_xor);
 
+fn void? Cpu.inst_rol(&self, Instruction inst) @Inst => @bit_op_inst(self, inst, op_rol);
+
+// this isn't the same as InstructionType.is_bit_op. I should probably rename the other one, and this could also probably use a better name bc of how useful it could be for all the add/sub/etc instructions if it also set flags.carry
 macro @bit_op_inst(Cpu* cpu, Instruction inst, #op) => cpu.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
 {
 	$Type res = ($Type)#op(#dst, #src);
@@ -516,3 +535,9 @@ macro op_bse(a, b) => a | (1 << b);
 macro op_srl(a, b) => a >> b;
 macro op_sla(a, b) => a << b;
 macro op_xor(a, b) => a ^ b;
+// $typeof(a) == $width.type (so basically it's a hack so I can resuse @bit_op_inst without needing to pass the width)
+// <* @require x() *>
+macro op_rol(a, b) => (a << b) | (a >> (($typeof(a).sizeof * 8) - b));
+macro op_ror(a, b) => (a >> b) | (a << (($typeof(a).sizeof * 8) - b));
+
+// fn bool x() => abort("rol");

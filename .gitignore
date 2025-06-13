@@ -3,3 +3,4 @@ perf.data*
 *.o
 test.log
 vgcore*
+screenshot0*.png

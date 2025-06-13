@@ -279,13 +279,17 @@ void main()
 			DisplayOverlay* overlay = &cpu.overlays[i];
 			if (overlay.enable)
 			{
-				rl::updateTextureRec(overlay_tex, {0, 0, ...overlay.size}, cpu.mem_get(overlay.fb_ptr, overlay.size.x * overlay.size.y * 4)!!);
-
-
-				// io::printfn("overlay pos: %s, normalised: %s", overlay.pos, offset);
-				rl::beginShaderMode(boolean_transparency);
-				rl::drawTextureRec(overlay_tex, {0, 0, ...overlay.size}, {...overlay.pos}, rl::WHITE);
-				rl::endShaderMode();
+				if (try rl::updateTextureRec(overlay_tex, {0, 0, ...overlay.size}, cpu.mem_get(overlay.fb_ptr, overlay.size.x * overlay.size.y * 4)))
+				{
+					// io::printfn("overlay pos: %s, normalised: %s", overlay.pos, offset);
+					rl::beginShaderMode(boolean_transparency);
+					rl::drawTextureRec(overlay_tex, {0, 0, ...overlay.size}, {...overlay.pos}, rl::WHITE);
+					rl::endShaderMode();
+				}
+				else
+				{
+					logger::warn("[GUI] page fault while getting address of overlay %s at ptr 0x%.8x, size %s, byte size: %s", i, overlay.fb_ptr, overlay.size, overlay.size.x * overlay.size.y * 4);
+				}
 			}
 		}
 

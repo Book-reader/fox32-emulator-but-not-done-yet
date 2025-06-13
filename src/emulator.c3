@@ -148,7 +148,7 @@ fn void? Cpu.mem_set(&self, uint start, uint len, char[] buf)
 *>
 fn char[]? Cpu.mem_get(&self, uint start, uint len)
 {
-	if (start < common::RAM_SIZE && start + len < common::RAM_SIZE)
+	if (start < common::RAM_SIZE && start + len <= common::RAM_SIZE)
 	{
 		return self.ram[start:len];
 	}
@@ -472,10 +472,7 @@ fn int main(String[] args)
 				// Execute the current instruction
 				nextcase inst.type;
 			case inst::BRK:
-				static usz counter = 0;
-				counter ++;
-				logger::warn("Reached breakpoint at cycle %s, addr 0x%.8x", cpu.cycles, *cpu.inst_ptr);
-				if (counter == 2) cpu.error("Second breakpoint");
+				cpu.inst_brk(inst);
 				nextcase inst::GET;
 			case inst::HALT:
 			case inst::BREAK:
@@ -533,10 +530,10 @@ fn int main(String[] args)
 				cpu.inst_rjmp(inst);
 				nextcase inst::GET;
 			case inst::MCL:
-				cpu.mmu_enabled = false;
+				cpu.inst_mcl(inst);
 				nextcase inst::GET;
 			case inst::MSE:
-				cpu.mmu_enabled = true;
+				cpu.inst_mse(inst);
 				nextcase inst::GET;
 			case inst::OUT:
 				cpu.inst_out(inst);
@@ -603,6 +600,9 @@ fn int main(String[] args)
 				nextcase inst::GET;
 			case inst::NOT:
 				cpu.inst_not(inst);
+				nextcase inst::GET;
+			case inst::ROL:
+				cpu.inst_rol(inst);
 				nextcase inst::GET;
 			default:
 				cpu.error("Instruction %s is not implemented yet", inst::NAME[inst.type]);
