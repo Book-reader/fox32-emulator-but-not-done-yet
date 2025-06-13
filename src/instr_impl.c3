@@ -16,7 +16,7 @@ attrdef @Inst = @inline, @maydiscard;
 fn void? Cpu.inst_brk(&self, Instruction inst) @Inst => self.@setup(inst, W32; #src, #dst)
 {
 	// self.move_forward(W32, inst::BRK, inst);
-	self.throw(inter::EXC_BREAK);
+	self.throw(EXC_BREAK);
 }
 
 fn void? Cpu.inst_mcl(&self, Instruction inst) @Inst => self.@setup(inst, W32; #src, #dst)
