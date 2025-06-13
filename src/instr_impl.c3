@@ -467,6 +467,13 @@ fn void? Cpu.inst_pop(&self, Instruction inst) @Inst => self.@setup_w(inst; BitW
 	self.set_val($width, inst, SRC, self._pop($width)!)!;
 }
 
+fn void? Cpu.inst_not(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
+{
+	$Type res = ~#src;
+	self.set_val($width, inst, DST, res)!;
+	self.flags.zero = res == 0;
+}
+
 fn void? Cpu.inst_sla(&self, Instruction inst) @Inst => @bit_op_inst(self, inst, op_sla);
 
 fn void? Cpu.inst_sra(&self, Instruction inst) @Inst => self.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
@@ -493,6 +500,7 @@ fn void? Cpu.inst_or(&self, Instruction inst) @Inst => @bit_op_inst(self, inst, 
 
 fn void? Cpu.inst_and(&self, Instruction inst) @Inst => @bit_op_inst(self, inst, op_and);
 
+fn void? Cpu.inst_xor(&self, Instruction inst) @Inst => @bit_op_inst(self, inst, op_xor);
 
 macro @bit_op_inst(Cpu* cpu, Instruction inst, #op) => cpu.@setup_w(inst; BitWidth $width, $Type, #src, #dst)
 {
@@ -507,3 +515,4 @@ macro op_bcl(a, b) => a & ~(1 << b);
 macro op_bse(a, b) => a | (1 << b);
 macro op_srl(a, b) => a >> b;
 macro op_sla(a, b) => a << b;
+macro op_xor(a, b) => a ^ b;

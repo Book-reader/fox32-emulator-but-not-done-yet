@@ -598,6 +598,12 @@ fn int main(String[] args)
 			case inst::AND:
 				cpu.inst_and(inst);
 				nextcase inst::GET;
+			case inst::XOR:
+				cpu.inst_xor(inst);
+				nextcase inst::GET;
+			case inst::NOT:
+				cpu.inst_not(inst);
+				nextcase inst::GET;
 			default:
 				cpu.error("Instruction %s is not implemented yet", inst::NAME[inst.type]);
 				nextcase inst::BREAK;
