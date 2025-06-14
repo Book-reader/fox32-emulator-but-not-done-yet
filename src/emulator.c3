@@ -371,8 +371,6 @@ fn int main(String[] args)
 
 	char[] prog;
 
-	usz max_cycles;
-
 	if (args.len > 1)
 	{
 /*		if (args[0] == "test")
@@ -438,11 +436,6 @@ fn int main(String[] args)
 				cpu.cycles ++;
 				/*gui_upd.push(true)!!;
 				if (!gui_done.pop()!!) nextcase inst::BREAK;*/
-				if (cpu.cycles == max_cycles)
-				{
-					logger::info("Hit max_cycles of %s, exiting", max_cycles);
-					nextcase inst::BREAK;
-				}
 				// TODO: set a clock speed
 				$if $feature(DELAY):
 					thread::sleep_ns(1);
@@ -452,7 +445,7 @@ fn int main(String[] args)
 			case inst::GET_:
 				$if $feature(PERF):
 					iterations ++;
-					if (iterations % 30000000 == 0)
+					if (iterations == 33000000)
 					{
 						NanoDuration t = clock.mark();
 						logger::info("%s cycles took %s (%s)", iterations, t, t.to_sec() <= 1 ? "good" : "bad");
