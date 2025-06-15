@@ -46,6 +46,7 @@ $ c3c build -D <build flag> -O5
  - PERF -> print the time taken to execute 30M instructions (target <= 1 second for 30Mhz)
  - NOWARN -> silence runtime warnings, mostly unimplemented methods
  - FOXLOG -> print debug logs in the exact same format as the fox32 reference emulator
+ - MORE_PERF -> inlines all instructions for a performance boost at the cost of compile-time
 
 ## usage:
 

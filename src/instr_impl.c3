@@ -9,7 +9,8 @@ import std::math;
 import std::time::datetime;
 import libc;
 
-attrdef @Inst = @inline, @maydiscard;
+attrdef @Inst @if($feature(MORE_PERF)) = @inline, @maydiscard;
+attrdef @Inst @if(!$feature(MORE_PERF)) = @maydiscard;
 
 // NOTE: #src and #dst are FUNCTIONS that will be called EVERY TIME they are used
 // this is fine when debug printing is enabled, but not otherwise
