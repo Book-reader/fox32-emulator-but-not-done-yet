@@ -43,7 +43,34 @@ bitstruct Instruction (Printable) : ushort @littleendian
 	Condition cond : 4..6;
 	bool has_offset : 7;
 	InstructionType type : 8..13;
-	BitWidth width : 14..15;
+	Size width : 14..15;
+}
+alias Memory = Byte[];
+alias Register = Word;
+typedef Word = inline uint;
+typedef Half = inline ushort;
+typedef Byte = inline char;
+
+macro typeid to_signed($Type)
+{
+	$switch $Type:
+	$case Word:
+		return int.typeid;
+	$case Half:
+		return short.typeid;
+	$case Byte:
+		return ichar.typeid;
+	$default:
+		$error "Invalid type: " +++ $Type.nameof;
+	$endswitch
+}
+
+
+enum Size : Byte (String suffix, inline Word size, typeid type, typeid itype)
+{
+	BYTE = { ".8", 1, Byte.typeid, ichar.typeid },
+	HALF = { ".16", 2, Half.typeid, short.typeid },
+	WORD = { ".32", 4, Word.typeid, int.typeid },
 }
 
 const INST_SIZE = 2;
@@ -53,7 +80,7 @@ fn usz? Instruction.to_format(&self, Formatter* formatter) @dynamic
 {
 	usz? n;
 	String name = inst::NAME[self.type];
-	if (self.cond.ordinal >= Condition.values.len || self.src.ordinal >= ArgType.values.len || self.dst.ordinal >= ArgType.values.len || self.width.ordinal >= BitWidth.values.len || name == "INVALID")
+	if (self.cond.ordinal >= Condition.values.len || self.src.ordinal >= ArgType.values.len || self.dst.ordinal >= ArgType.values.len || self.width.ordinal >= Size.values.len || name == "INVALID")
 	{
 		n += formatter.printf("<INVALID>");
 	}
@@ -88,37 +115,29 @@ typedef InstructionType = inline char;
 typedef Interrupt = inline ushort;
 faultdef VM_EXCEPTION @builtin;
 
-enum BitWidth : char (String suffix, inline uint size, typeid type, typeid itype, String name)
-{
-//  NONE = { "", 0, void.typeid },
-  W8 = { ".8", 1, char.typeid, ichar.typeid, "BYTE" },
-  W16 = { ".16", 2, ushort.typeid, short.typeid, "HALF" },
-  W32 = { ".32", 4, uint.typeid, int.typeid, "WORD" },
-}
-
 // We have zig at home:
-macro @as($Type, #expr) @builtin => ($Type)(#expr);
+// macro @as($Type, #expr) @builtin => ($Type)(#expr);
 
 
 <*
- @require values::@is_int(val) && !$defined(*val)
+ // @require values::@is_int(val) && !$defined(*val)
  @require $typeof(val).typeid == $width.type ||| $typeof(val).typeid == $width.itype
 *>
-macro void char[].set(self, BitWidth $width, val) => self[:$width] = @as(char*, &val)[:$width];
+macro void Byte[].set(self, Size $width, val) => self[:$width] = ((Byte*)&val)[:$width];
 
 <*
 	this doesn't work due to compiler missing feature:
 	@ensure $typeof(return).typeid == $width.type
 *>
-macro char[].get(self, BitWidth $width)
+macro Byte[].get(self, Size $width)
 {
   $switch $width:
-    $case W8:
-      return (char)self[0];
-	$case W16:
-		return (ushort)bitorder::read(self, UShortLE);
-	$case W32:
-		return (uint)bitorder::read(self, UIntLE);
+    $case BYTE:
+      return (Byte)((char[])self)[0];
+	$case HALF:
+		return (Half)bitorder::read((char[])self, UShortLE);
+	$case WORD:
+		return (Word)bitorder::read((char[])self, UIntLE);
   $endswitch
 }
 
@@ -241,7 +260,7 @@ macro InstructionType.arg_count($self) @const
 	$endswitch
 }
 
-// bit shifting ops like bsl always have W8 sources because you don't need to shift the max of 32 bits by more than the 255 of W8 so allowing W16/32 would be pointless&wasteful
+// bit shifting ops like bsl always have BYTE sources because you don't need to shift the max of 32 bits by more than the 255 of BYTE so allowing HALF/32 would be pointless&wasteful
 macro bool InstructionType.is_bit_op($self) @const
 {
 	$switch $self:

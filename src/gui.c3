@@ -10,7 +10,7 @@ import std::collections::linkedlist;
 import std::collections::tuple;
 import raylib5::rl;
 
-typedef ScanCode = inline char;
+typedef ScanCode = inline Byte;
 
 // 512 is semi-arbitrary, but should work fine with how raylib does keycodes
 const ScanCode[512] SCANCODES = {
@@ -123,7 +123,7 @@ const ScanCode[512] SCANCODES = {
 };
 Tuple{bool, ScanCode}[512] held_keys;
 
-char[common::BG_FB_SIZE] empty_overlay;
+Byte[common::BG_FB_SIZE] empty_overlay;
 
 bitstruct MouseState : uint @littleendian
 {
@@ -148,9 +148,9 @@ Atom {LinkedList {KeyEvent}} key_queue @private;
 <*
 	// @ensure return != 0 ? io::printfn("returned key %s (r: %s, c: %s)", return, ((KeyEvent)return).released, ((KeyEvent)return).code)!! != 0 : true
 *>
-fn uint get_key() @inline => (uint)key_queue.call("pop_front") ?? (uint)NONE;
+fn uint get_key() @inline => (Word)key_queue.call("pop_front") ?? (Word)NONE;
 
-fn int run_gui(void* _arg) => @pool_init(mem, 4096, allocator::temp_allocator_buffer_size)
+fn int run_gui(void* _arg) => @pool_init(mem, 4096)
 {
 	mouse_pos.init()!!;
 	defer (void)mouse_pos.destroy();
@@ -230,7 +230,7 @@ void main()
 		{
 			// logger::info("Mouse state at start of frame: %.32b", (uint)mouse_state.get()!!);
 			Vector2 pos = rl::getMousePosition();
-			(void)mouse_pos.set({(uint)pos.x.clamp(0, 640), (uint)pos.y.clamp(0, 480)});
+			(void)mouse_pos.set({(Word)pos.x.clamp(0, 640), (Word)pos.y.clamp(0, 480)});
 			// logger::debug("set mouse pos to <%s, %s>", mouse_pos.get().first, mouse_pos.get().second);
 			if (rl::isMouseButtonPressed(LEFT))
 			{
@@ -279,7 +279,7 @@ void main()
 			DisplayOverlay* overlay = &cpu.overlays[i];
 			if (overlay.enable)
 			{
-				if (try rl::updateTextureRec(overlay_tex, {0, 0, ...overlay.size}, cpu.mem_get(overlay.fb_ptr, overlay.size.x * overlay.size.y * 4)))
+				if (try rl::updateTextureRec(overlay_tex, {0, 0, ...overlay.size}, cpu.mem_get(overlay.fb_ptr, (overlay.size.x * overlay.size.y * 4))))
 				{
 					// io::printfn("overlay pos: %s, normalised: %s", overlay.pos, offset);
 					rl::beginShaderMode(boolean_transparency);

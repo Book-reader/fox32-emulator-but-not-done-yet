@@ -3,6 +3,7 @@ import common;
 import logger;
 import gui;
 import disk;
+import value_hack;
 
 import std::io;
 import std::thread;
@@ -10,35 +11,39 @@ import std::time;
 import std::collections::list;
 import std::math;
 
-alias alloc = allocator::mem;
+// macro Word Word.add(self, Word other) @operator_s(+) => (Word)((uint)self + (uint)other);
+macro Word Word.add_h(self, Half other) @operator_s(+) => self + (Word)other;
+macro Word Word.add_b(self, Byte other) @operator_s(+) => self + (Word)other;
+// macro Word Word.add_b1(&self, Byte other) @operator(+=) => *self += (Word)other;
+macro Word Word.add_i(self, int other) @operator_s(+) => (Word)((int)self + other);
+macro Word Word.add_s(self, short other) @operator_s(+) => (Word)((int)self + other);
+macro Word Word.add_c(self, ichar other) @operator_s(+) => (Word)((int)self + other);
 
-alias Register = uint;
-
-macro Register.write(&self, BitWidth $width, data)
+macro Register.set(&self, Size $size, val)
 {
-	$switch $width:
-	$case W8:
-		*self = (*self & ~0x000000ff) | @as(uint, data);
-	$case W16:
-		*self = (*self & ~0x0000ffff) | @as(uint, data);
-	$case W32:
-		*self = data;
+	$switch $size:
+	$case BYTE:
+		*self = (*self & ~0x000000ff) | (Word)val;
+	$case HALF:
+		*self = (*self & ~0x0000ffff) | (Word)val;
+	$case WORD:
+		*self = (Word)val;
 	$endswitch
 }
 
-macro Register.read(self, BitWidth $width)
+macro Register.get(self, Size $size)
 {
-	$switch $width:
-	$case W8:
-		return @as(char, self & 0x000000ff);
-	$case W16:
-		return @as(ushort, self & 0x0000ffff);
-	$case W32:
-		return self;
+	$switch $size:// casting might be literally nanoseconds faster then casting & masking (afaik the casting just results in a 8 or 16 bit mov instead of a 32 bit one). the masking was only needed in the C emulator because it was being returned as an int but it won't be needed here
+	$case BYTE:
+		return (Byte)self;// (self & 0x000000ff);
+	$case HALF:
+		return (Half)self;//(self & 0x0000ffff);
+	$case WORD:
+		return (Word)self;
 	$endswitch
 }
 
-bitstruct CpuFlags : char
+bitstruct CpuFlags : $typefrom(Byte.inner)
 {
 	bool zero : 0;
 	bool carry : 1;
@@ -48,25 +53,25 @@ bitstruct CpuFlags : char
 
 struct DisplayOverlay
 {
-	uint[<2>] pos;
-	uint[<2>] size;
-	uint fb_ptr;
+	Word[<2>] pos;
+	Word[<2>] size;
+	Word fb_ptr;
 	bool enable;
 }
 
-bitstruct OverlayAddr : uint @littleendian
+bitstruct OverlayAddr : $typefrom(Word.inner) @littleendian
 {
-	char idx : 0..7;
+	Byte idx : 0..7;
 	OverlayOption type : 8..15;
 }
 
-bitstruct SplitInt : uint @littleendian
+bitstruct SplitInt : $typefrom(Word.inner) @littleendian
 {
-	uint first : 0..15;
-	uint second : 16..31;
+	Word first : 0..15;
+	Word second : 16..31;
 }
 
-enum OverlayOption : char
+enum OverlayOption : $typefrom(Byte.inner)
 {
 	POSITION,
 	SIZE,
@@ -74,18 +79,18 @@ enum OverlayOption : char
 	ENABLE,
 }
 
-bitstruct DiskCommandAddr : uint @littleendian
+bitstruct DiskCommandAddr : $typefrom(Word.inner) @littleendian
 {
-	char idx : 0..7;
-	uint command : 8..15;
+	Byte idx : 0..7;
+	Word command : 8..15;
 }
 
-bitstruct ClockOption : uint @littleendian
+bitstruct ClockOption : $typefrom(Word.inner) @littleendian
 {
 	ClockOptionType type : 0..7;
 }
 
-enum ClockOptionType : char
+enum ClockOptionType : $typefrom(Byte.inner)
 {
 	YEAR,
 	MONTH,
@@ -111,23 +116,61 @@ struct Cpu
 	bool page_directory;
 	Register[common::NUM_REGISTERS] regs;
 	usz cycles;
-	char[] ram;
-	char[] rom;
+	Memory ram;
+	Memory rom;
 	DisplayOverlay[common::NUM_OVERLAYS] overlays;
 	bool[common::NUM_VECTORS] deferred_vectors;
 	ushort deferred_vectors_count;
 	bool exception;
 	Interrupt exception_type;
-	uint exception_operand;
+	Word exception_operand;
 	Clock clock;
 	// only incremented when Cpu.inst_in gets the uptime, not for general use
 	NanoDuration uptime;
 }
 
+macro void? Cpu.mem_set(#self, Word start, #len, Byte[] buf) @safemacro
+{
+	return #self._mem_set(start, @arg_Word_or_Size(#len), buf);
+}
+
+macro bool String[].@contains($self, String $other) @const
+{
+	$foreach $val : $self:
+		$if $val == $other:
+			return true;
+		$endif
+	$endforeach
+	return false;
+}
+
+macro Word @arg_Word_or_Size(#arg)
+{
+	Word res;
+	$switch:
+	$case $defined(#arg) &&& (@typeis(#arg, Word) ||| (values::@is_int(#arg) &&& $typeof(#arg).sizeof == common::PTR_SIZE)):
+		res = (Word)(#arg);
+	$case Size.names.@contains($stringify(#arg)):// $defined(Size.$eval($stringify(#arg))):
+	$case @typeis(#arg, Size):
+		Size $s = #arg;
+		res = $s.size;
+	$default:
+		$error `"%s" is an invalid type, must be "Word" or "Size"`, $typeof(#arg).nameof;
+	$endswitch
+	return res;
+
+}
+
+macro Byte[]? Cpu.mem_get(#self, Word start, #len) @safemacro
+{
+	return #self._mem_get(start, @arg_Word_or_Size(#len));
+}
+
+
 <*
 	@require len == buf.len
 *>
-fn void? Cpu.mem_set(&self, uint start, uint len, char[] buf)
+fn void? Cpu._mem_set(&self, Word start, Word len, Byte[] buf)
 {
 	if (start < common::RAM_SIZE && start + len <= common::RAM_SIZE)
 	{
@@ -146,7 +189,7 @@ fn void? Cpu.mem_set(&self, uint start, uint len, char[] buf)
 <*
 	@ensure return.len == len
 *>
-fn char[]? Cpu.mem_get(&self, uint start, uint len)
+fn Byte[]? Cpu._mem_get(&self, Word start, Word len)
 {
 	if (start < common::RAM_SIZE && start + len <= common::RAM_SIZE)
 	{
@@ -165,7 +208,7 @@ fn char[]? Cpu.mem_get(&self, uint start, uint len)
 // TODO: maybe make current instruction part of the cpu struct?
 // upside: passing less data around through stack
 // downside: need to dereference to get it, may negate performance benefit, will need to check eventually
-macro Cpu.print_instr(&self, Instruction inst, BitWidth $width, InstructionType $type, String $inst_name) => @pool()
+macro Cpu.print_instr(&self, Instruction inst, Size $width, InstructionType $type, String $inst_name) => @pool()
 {
 	// static char[256] buf;
 	DString str;
@@ -191,14 +234,14 @@ macro Cpu.print_instr(&self, Instruction inst, BitWidth $width, InstructionType 
 	io::printn();
 }
 
-macro Cpu.print_arg(&self, DString* str, Instruction inst, InstructionType $inst_type, BitWidth $width, ArgPos $arg)
+macro Cpu.print_arg(&self, DString* str, Instruction inst, InstructionType $inst_type, Size $width, ArgPos $arg)
 {
-	uint offset = @arg_offset($width, inst, $inst_type, $arg);
+	Byte offset = @arg_offset($width, inst, $inst_type, $arg);
 	switch (inst.$eval($arg.name))
 	{
 		case REG:
 		case REG_PTR:
-			io::printf(" %-8s", common::REG_NAMES[self.mem_get(self.inst_ptr_next + offset, 1)!.get(W8)]);
+			io::printf(" %-8s", common::REG_NAMES[self.mem_get(self.inst_ptr_next + offset, 1)!.get(BYTE)]);
 		case IMM:
 		case IMM_PTR:
 			io::printf(" %.8X", self.mem_get(self.inst_ptr_next + offset, common::PTR_SIZE)!.get($width));
@@ -217,8 +260,8 @@ fn void Cpu.init(&self)
 	*self.stack_ptr = common::DEFAULT_STACK_PTR;
 	self.inst_ptr_next = *self.inst_ptr;
 
-	self.ram = mem::new_array(char, common::RAM_SIZE);
-	self.rom = mem::new_array(char, common::ROM_SIZE);
+	self.ram = mem::new_array(Byte, common::RAM_SIZE);
+	self.rom = mem::new_array(Byte, common::ROM_SIZE);
 
 //	self.fb.init();
 }
@@ -234,7 +277,7 @@ fn void Cpu.deinit(&self)
 fn void Cpu.error(&self, String fmt, args..., String func = $$FUNC) @inline @noreturn
 {
 	io::eprintfn("[ERROR] %s (%s) At cycle %s", time::now(), func, self.cycles);
-	io::eprintf("[ERROR] At instruction %.8x -> %s\n[ERROR] ", *self.inst_ptr, (Instruction)self.mem_get(*self.inst_ptr, 2)!!.get(W16));
+	io::eprintf("[ERROR] At instruction %.8x -> %s\n[ERROR] ", *self.inst_ptr, (Instruction)self.mem_get(*self.inst_ptr, 2)!!.get(HALF));
 	io::eprintfn(fmt, ...args);
 	foreach (i, reg : self.regs)
 	{
@@ -266,23 +309,23 @@ fn void? Cpu._handle(&self, Interrupt interrupt_vec) @inline
 		return;
 	}
 	// logger::info("handling interrupt %s (%s)", interrupt_vec.name(), interrupt_vec);
-	uint handler = self.mem_get((uint)interrupt_vec * BitWidth.W32, common::PTR_SIZE)!.get(W32);
+	Word handler = self.mem_get((Word)interrupt_vec * Size.WORD, common::PTR_SIZE)!.get(WORD);
 	// logger::info("jumping to interrupt handler: 0x%.8x, should return to 0x%.8x", handler, *self.inst_ptr);
 
 	if (@unlikely(self.flags.swap_sp)) self.error("swap_sp is not supported yet");
 
-	self._push(W32, *self.inst_ptr)!;
-	self._push(W8, (char)self.flags)!;
+	self._push(WORD, *self.inst_ptr)!;
+	self._push(BYTE, (Byte)self.flags)!;
 	// it's an interrupt
 	if (interrupt_vec < 256)
 	{
-		self._push(W32, (uint)interrupt_vec)!;
+		self._push(WORD, (Word)interrupt_vec)!;
 	}
 	// it's an exception
 	else
 	{
 		assert(self.exception_operand != 0, "it probably shouldn't be zero");
-		self._push(W32, self.exception_operand)!;
+		self._push(WORD, self.exception_operand)!;
 		self.exception_operand = 0;
 	}
 	self.flags.interrupt = false;
@@ -369,7 +412,7 @@ fn int main(String[] args)
 	}
 	gui_init.pop()!!;
 
-	char[] prog;
+	Byte[] prog;
 
 	if (args.len > 1)
 	{
@@ -379,7 +422,7 @@ fn int main(String[] args)
 		}
 		else
 		{*/
-		prog = file::load(alloc, args[1])!!;
+		prog = (Byte[])file::load(mem, args[1])!!;
 		if (args.len > 2)
 		{
 			foreach (i, disk : args[2..])
@@ -392,12 +435,12 @@ fn int main(String[] args)
 	}
 	else
 	{
-		prog = x"340301ff00000000000000330000013c000003030101000000000000001c0000001503e8ffffffffffffff3b033a03";
+		prog = (Byte[])x"340301ff00000000000000330000013c000003030101000000000000001c0000001503e8ffffffffffffff3b033a03";
 	}
 	defer if (args.len > 1 && args[0] != "test") free(prog);
 
 
-	cpu.mem_set(common::DEFAULT_INST_PTR, prog.len, prog)!!;
+	cpu.mem_set(common::DEFAULT_INST_PTR, (Word)prog.len, prog)!!;
 
 	logger::debug("Executing (%s b): %h", prog.len, prog[:prog.len < 200 ? prog.len : 200]);
 
@@ -405,6 +448,7 @@ fn int main(String[] args)
 		uint iterations = 0;
 		Clock clock = clock::now();
 	$endif
+
 
 	Instruction inst;
 	cpu.clock = clock::now();
@@ -455,7 +499,7 @@ fn int main(String[] args)
 				$endif
 				logger::debug("Nearby mem: %s", cpu.mem_get(*cpu.inst_ptr, 10)!!);
 				
-				inst = (Instruction)cpu.mem_get(*cpu.inst_ptr, 2)!!.get(W16);
+				inst = (Instruction)cpu.mem_get(*cpu.inst_ptr, 2)!!.get(HALF);
 
 				logger::debug("%s 0x%.8x -> %s", cpu.cycles, *cpu.inst_ptr, inst);
 
@@ -464,9 +508,9 @@ fn int main(String[] args)
 
 				// Execute the current instruction
 				nextcase inst.type;
-			case inst::BRK:
+/*			case inst::BRK:
 				cpu.inst_brk(inst);
-				nextcase inst::GET;
+				nextcase inst::GET;*/
 			case inst::HALT:
 			case inst::BREAK:
 				logger::info("Exiting after %s clock cycles", cpu.cycles);
@@ -476,7 +520,7 @@ fn int main(String[] args)
 				}
 				return 0;
 
-			case inst::INC:
+/*			case inst::INC:
 				cpu.inst_inc(inst);
 				nextcase inst::GET;
 			case inst::DEC:
@@ -596,7 +640,7 @@ fn int main(String[] args)
 				nextcase inst::GET;
 			case inst::ROL:
 				cpu.inst_rol(inst);
-				nextcase inst::GET;
+				nextcase inst::GET;*/
 			default:
 				cpu.error("Instruction %s is not implemented yet", inst::NAME[inst.type]);
 				nextcase inst::BREAK;
@@ -604,7 +648,7 @@ fn int main(String[] args)
 	}
 }
 
-fn fault Cpu.throw(&self, Interrupt exc, uint exception_operand = 0)
+fn fault Cpu.throw(&self, Interrupt exc, Word exception_operand = 0)
 {
 	// logger::info("threw exception %s (%s) at cycle %s", exc.name(), exc, self.cycles);
 	self.exception = true;
@@ -638,7 +682,7 @@ macro bool Cpu.should_execute(&self, Instruction inst)
 	}
 }
 
-macro Cpu._push(&self, BitWidth $width, val, bool $is_bytes = false)
+macro Cpu._push(&self, Size $width, val, bool $is_bytes = false)
 {
 	// static char[4] data;
 	*self.stack_ptr -= $width;
@@ -647,11 +691,11 @@ macro Cpu._push(&self, BitWidth $width, val, bool $is_bytes = false)
 	$else
 		self.mem_get(*self.stack_ptr, $width)!.set($width, val);
 	$endif
-	// ((char[])&data).set(W32, (uint)val);
+	// ((char[])&data).set(WORD, (uint)val);
 	// logger::info("val bytes: %s. top 20 bytes of the stack: %s", data[:$width], self.mem_get(*self.stack_ptr, 20)!);
 }
 
-macro Cpu._pop(&self, BitWidth $width)
+macro Cpu._pop(&self, Size $width)
 {
 	var ret = self.mem_get(*self.stack_ptr, $width)!.get($width);
 	// if (ret == 0x000000f0) self.error("popped the evil");
@@ -659,19 +703,19 @@ macro Cpu._pop(&self, BitWidth $width)
 	return ret;
 }
 
-macro Cpu.@setup_w(&self, Instruction inst, bool $move = true; @body(BitWidth $width, $Type, #src, #dst))
+// TODO: compare performance of (src dst) and (#src, #dst)
+macro Cpu.@setup_w(&self, Instruction inst, bool $move = true; @body($Type, #src, #dst))
 {
-	@each_width(inst.width; BitWidth $width)
+	@each_width(inst.width; Size $width)
 	{
 		self.@setup(inst, $width, $move; #src, #dst)
 		{
-			@body($width, $width.type, #src, #dst);
+			@body($width.type, #src, #dst);
 		};
 	};
 }
 
-// TODO: also return $Type = $width.type
-macro Cpu.@setup(&self, Instruction inst, BitWidth $width, bool $move = true; @body(#src, #dst))
+macro Cpu.@setup(&self, Instruction inst, Size $width, bool $move = true; @body(#src, #dst))
 {
 	String $inst_name = @inst_name();
 	InstructionType $type = @inst_type();
@@ -707,7 +751,7 @@ macro Cpu.@setup(&self, Instruction inst, BitWidth $width, bool $move = true; @b
 	<*
 		@require $typeof(val) == Register* ||| ($typeof(val) == char[] && val.len == $width)
 	*>
-	macro Register.set(&self, BitWidth $width, val)
+	macro Register.set(&self, Size $width, val)
 	{
 		$if $typeof(val) == char[]:
 			self = val.to_$width();
@@ -715,11 +759,11 @@ macro Cpu.@setup(&self, Instruction inst, BitWidth $width, bool $move = true; @b
 			self = val;
 		$endif
 	}
-	macro Register.get(self, BitWidth $width, bool $signed = false)
+	macro Register.get(self, Size $width, bool $signed = false)
 */
 // and it would be the same for char[].set(), and then typeof(#src and #dst) could just be Register* or char[] and I won't need both get_value and set_value
 // it could also result in increased performance if done correctly for mem->mem and reg->reg bc no char[]->int->char[] conversions or double bitmasking along the way
-macro Cpu.@args(&self, Instruction inst, String $inst_name, InstructionType $type, BitWidth $width; @body(#src, #dst))
+macro Cpu.@args(&self, Instruction inst, String $inst_name, InstructionType $type, Size $width; @body(#src, #dst))
 {
 	$switch $type.arg_count():
 		$case 0:
@@ -727,14 +771,17 @@ macro Cpu.@args(&self, Instruction inst, String $inst_name, InstructionType $typ
 		$case 1:
 			// $typefrom($width.type) src = self.get_val($width, inst, SRC);
 			// @body(src, no_param($type, DST));
-			@body(self.get_val($width, inst, SRC)!, no_param($inst_name, DST));
+			
+			@body(value_hack::from{ArgPos.SRC, $width, $type}(self, inst), no_param($inst_name, DST));
 		$case 2:
+			// TODO: the ::from will actually do a little uneeded stuff each time (moving the instruction), I should make a prepare macro that does that so from is just a cast
 			$if $type.is_bit_op():
-				// $typefrom($width.type) src = self.get_val(W8, inst, SRC);
-				@body(self.get_val(W8, inst, SRC)!, self.get_val($width, inst, DST)!);
+				// $typefrom($width.type) src = self.get_val(BYTE, inst, SRC);
+
+				@body(value_hack::from{ArgPos.SRC, Size.BYTE, $type}(self, inst), value_hack::from{ArgPos.DST, $width, $type}(self, inst));
 			$else
 				// $typefrom($width.type) src = self.get_val($width, inst, SRC);
-				@body(self.get_val($width, inst, SRC)!, self.get_val($width, inst, DST)!);
+				@body(value_hack::from{ArgPos.SRC, $width, $type}(self, inst), value_hack::from{ArgPos.DST, $width, $type}(self, inst));
 			$endif
 			// $typefrom($width.type) dst = self.get_val($width, inst, DST);
 			// @body(src, dst);
@@ -747,80 +794,23 @@ macro Cpu.@args(&self, Instruction inst, String $inst_name, InstructionType $typ
 macro no_param(String $inst_name, ArgPos $pos) { $error("Instruction " +++ $inst_name +++ " does not have parameter " +++ $pos.name); }
 
 
-<*
-	@require $typeof(val).typeid == $width.type
-*>
-macro Cpu.set_val(&self, BitWidth $width, Instruction inst, ArgPos $arg, val, InstructionType $inst_type = @inst_type())
-{
-	uint offset = @arg_offset($width, inst, $inst_type, $arg);
-	// io::printfn("Moving %.8x", val);
-	// logger::debug("Current idx is %s, calculated offset is %s", self.inst_ptr_next, offset);
-	switch (inst.$eval($arg.name))
-	{
-		case REG:
-			char reg = self.mem_get(self.inst_ptr_next + offset, 1)!.get(W8);
-			/*if (reg == 7)
-			{
-				logger::info("Writing %s (%.8x) into R1", val, val);
-				if (val == uint.min - 1u)
-				{
-					self.error("Underflow :(");
-				}
-			}*/
-			self.regs[reg].write($width, val);
-		case REG_PTR:
-			char reg = self.mem_get(self.inst_ptr_next + offset, 1)!.get(W8);
-			uint smol_offset = !inst.has_offset ? 0 : self.mem_get(self.inst_ptr_next + offset + 1, 1)!.get(W8);
-			self.mem_get(self.regs[reg] + smol_offset, $width)!.set($width, val);
-			// self.mem_get(self.regs[self.mem_get(self.inst_ptr_next + offset, 1).get(W8)], $width).set($width, val);
-		case IMM:
-			self.error("mov into immediate value not implemented");
-		case IMM_PTR:
-			self.mem_get(self.mem_get(self.inst_ptr_next + offset, common::PTR_SIZE)!.get(W32), $width)!.set($width, val);
-	}
-}
-
-<*
-	@ensure $typeof(return).typeid == $width.type
-*>
-macro Cpu.get_val(&self, BitWidth $width, Instruction inst, ArgPos $arg, InstructionType $inst_type = @inst_type())
-{
-	uint offset = @arg_offset($width, inst, $inst_type, $arg);
-	// logger::debug("Current idx is %s, calculated offset is %s", self.inst_ptr_next, offset);
-	switch (inst.$eval($arg.name))
-	{
-		case REG:
-			logger::debug("Reading from register %s", common::REG_NAMES[self.mem_get(self.inst_ptr_next + offset, 1)!.get(W8)]);
-			return self.regs[self.mem_get(self.inst_ptr_next + offset, 1)!.get(W8)].read($width);
-		case REG_PTR:
-			char reg = self.mem_get(self.inst_ptr_next + offset, 1)!.get(W8);
-			uint smol_offset = !inst.has_offset ? 0 : self.mem_get(self.inst_ptr_next + offset + 1, 1)!.get(W8);
-			$typefrom($width.type) val = self.mem_get(self.regs[reg] + smol_offset, $width)!.get($width);
-			return val;// self.mem_get(self.regs[reg] + self.mem_get(self.inst_ptr_next + 1, 1).get(W8), $width).get($width);
-		case IMM:
-			return self.mem_get(self.inst_ptr_next + offset, $width)!.get($width);
-		case IMM_PTR:
-			return self.mem_get(self.mem_get(self.inst_ptr_next + offset, common::PTR_SIZE)!.get(W32), $width)!.get($width);
-	}
-}
-
-macro void @each_width(BitWidth width; @body(BitWidth $width))
+macro void @each_width(Size width; @body(Size $width))
 {
 	switch (width)
 	{
-		case W8:
-			@body(W8);
-		case W16:
-			@body(W16);
-		case W32:
-			@body(W32);
+		case BYTE:
+			@body(BYTE);
+		case HALF:
+			@body(HALF);
+		case WORD:
+			@body(WORD);
 	}
 }
 
 // TODO: consider using this once I have more things as generic functions
 // macro void @earch_arg(ArgType type; @body(ArgType $type))
 
-macro @as_width(BitWidth $width, #expr, bool $signed = false)
+macro @as_width(Size $width, #expr, bool $signed = false)
 {
 	$if $signed:
 		return @as($typefrom($width.itype), #expr);
@@ -829,10 +819,11 @@ macro @as_width(BitWidth $width, #expr, bool $signed = false)
 	$endif
 }
 
-macro Cpu.move_forward(&self, BitWidth $width, InstructionType $type, Instruction inst)
+macro Cpu.move_forward(&self, Size $width, InstructionType $type, Instruction inst)
 {
 	$switch $type.arg_count():
 		$case 1:
+			// TODO: replace with += once compiler bug is fixed
 			self.inst_ptr_next += arg_size(inst, $type, SRC, $width);
 		$case 2:
 			self.inst_ptr_next += arg_size(inst, $type, SRC, $width);
@@ -844,7 +835,7 @@ macro Cpu.move_forward(&self, BitWidth $width, InstructionType $type, Instructio
 	$endswitch
 }
 
-macro uint arg_size(Instruction inst, InstructionType $type, ArgPos $arg, BitWidth $width)
+macro Byte arg_size(Instruction inst, InstructionType $type, ArgPos $arg, Size $width)
 {
 	switch (inst.$eval($arg.name))
 	{
@@ -873,7 +864,7 @@ macro uint arg_size(Instruction inst, InstructionType $type, ArgPos $arg, BitWid
 <*
  @require $type.arg_count() >= $arg.idx : "tried to access a arg that instruction doesn't have :("
 *>
-macro uint @arg_offset(BitWidth $width, Instruction inst, InstructionType $type, ArgPos $arg) => @select($arg == SRC, 0, arg_size(inst, $type, SRC, $width));
+macro Byte @arg_offset(Size $width, Instruction inst, InstructionType $type, ArgPos $arg) => @select($arg == SRC, 0, arg_size(inst, $type, SRC, $width));
 
 enum ArgPos : (String name, usz idx)
 {
@@ -890,3 +881,123 @@ macro String @inst_name() => @str_upper($$FUNC[9..]);
  @require $$FUNC[0:9] == "Cpu.inst_" : "@inst_type must be called from inside a cpu instruction"
 *>
 macro InstructionType @inst_type() => $eval("inst::" +++ @inst_name());
+
+
+<*
+ :)
+ @require $typeof(ARG_POS).typeid == ArgPos.typeid
+ @require $typeof(WIDTH).typeid == Size.typeid
+ @require $typeof(INST_TYPE).typeid == InstructionType.typeid
+*>
+module value_hack {ARG_POS, WIDTH, INST_TYPE};
+import emulator;
+import common;
+
+// TODO: would using a struct be more performant?
+typedef Hack = Cpu*;
+Instruction inst;
+
+macro Hack from(Cpu* cpu, Instruction #inst) @safemacro
+{
+	inst = #inst;
+	return (Hack)cpu;
+}
+
+macro Cpu* @c(#self) @private => (Cpu*)#self;
+
+macro Hack.get(#self, Size $size = WIDTH) @safemacro
+{
+	Cpu* c = @c(#self);
+	// WIDTH is needed here instead of $size (I think) as that should prevent any theoretical issues when the get size is different from the arg size
+	Byte offset = emulator::@arg_offset(WIDTH, inst, INST_TYPE, ARG_POS);
+	Word inst_ptr = c.inst_ptr_next + offset;
+	switch (inst.$eval(ARG_POS.name))
+	{
+		case REG:
+			return c.regs[c.mem_get(inst_ptr, BYTE).get(BYTE)!].get($size);
+		case REG_PTR:
+			Byte reg = c.mem_get(inst_ptr, BYTE).get(BYTE)!;
+			Byte smol_offset = inst.has_offset ? c.mem_get(inst_ptr + 1, BYTE).get(BYTE)! : 0;
+			return c.mem_get(c.regs[reg] + smol_offset, $size).get($size)!;
+		case IMM:
+			return c.mem_get(inst_ptr, $size).get($size)!;
+		case IMM_PTR:
+			return c.mem_get(c.mem_get(inst_ptr, WORD).get(WORD)!, $size).get($size);
+	}
+}
+
+macro void? Hack.set(#self, val, Size $width = WIDTH) @safemacro
+{
+	Cpu* c = @c(#self);
+	// WIDTH is needed here instead of $size (I think) as that should prevent any theoretical issues when the get size is different from the arg size
+	Byte offset = emulator::@arg_offset(WIDTH, inst, INST_TYPE, ARG_POS);
+	Word inst_ptr = c.inst_ptr_next + offset;
+	switch (inst.$eval(ARG_POS.name))
+	{
+		case REG:
+			Byte reg = c.mem_get(inst_ptr, BYTE).get(BYTE)!;
+			c.regs[reg].set($width, val);
+		case REG_PTR:
+		default:
+			abort("unimplemented");
+	}
+
+}
+/*
+<*
+	@require $typeof(val).typeid == $width.type
+*>
+macro Cpu.set_val(&self, Size $width, Instruction inst, ArgPos $arg, val, InstructionType $inst_type = @inst_type())
+{
+	Byte offset = @arg_offset($width, inst, $inst_type, $arg);
+	// io::printfn("Moving %.8x", val);
+	// logger::debug("Current idx is %s, calculated offset is %s", self.inst_ptr_next, offset);
+	switch (inst.$eval($arg.name))
+	{
+		case REG:
+			char reg = self.mem_get(self.inst_ptr_next + offset, 1)!.get(BYTE);
+			/*if (reg == 7)
+			{
+				logger::info("Writing %s (%.8x) into R1", val, val);
+				if (val == uint.min - 1u)
+				{
+					self.error("Underflow :(");
+				}
+			}*/
+			self.regs[reg].set($width, val);
+		case REG_PTR:
+			Byte reg = self.mem_get(self.inst_ptr_next + offset, 1)!.get(BYTE);
+			Byte smol_offset = !inst.has_offset ? 0 : self.mem_get(self.inst_ptr_next + offset + 1, 1)!.get(BYTE);
+			self.mem_get(self.regs[reg] + smol_offset, $width)!.set($width, val);
+			// self.mem_get(self.regs[self.mem_get(self.inst_ptr_next + offset, 1).get(BYTE)], $width).set($width, val);
+		case IMM:
+			self.error("mov into immediate value not implemented");
+		case IMM_PTR:
+			self.mem_get(self.mem_get(self.inst_ptr_next + offset, common::PTR_SIZE)!.get(WORD), $width)!.set($width, val);
+	}
+}
+
+<*
+	@ensure $typeof(return).typeid == $width.type
+*>
+macro Cpu.get_val(&self, Size $width, Instruction inst, ArgPos $arg, InstructionType $inst_type = @inst_type())
+{
+	Byte offset = @arg_offset($width, inst, $inst_type, $arg);
+	// logger::debug("Current idx is %s, calculated offset is %s", self.inst_ptr_next, offset);
+	switch (inst.$eval($arg.name))
+	{
+		case REG:
+			logger::debug("Reading from register %s", common::REG_NAMES[self.mem_get(self.inst_ptr_next + offset, 1)!.get(BYTE)]);
+			return self.regs[self.mem_get(self.inst_ptr_next + offset, 1)!.get(BYTE)].get($width);
+		case REG_PTR:
+			Byte reg = self.mem_get(self.inst_ptr_next + offset, 1)!.get(BYTE);
+			Byte smol_offset = !inst.has_offset ? 0 : self.mem_get(self.inst_ptr_next + offset + 1, 1)!.get(BYTE);
+			$typefrom($width.type) val = self.mem_get(self.regs[reg] + smol_offset, $width)!.get($width);
+			return val;// self.mem_get(self.regs[reg] + self.mem_get(self.inst_ptr_next + 1, 1).get(BYTE), $width).get($width);
+		case IMM:
+			return self.mem_get(self.inst_ptr_next + offset, $width)!.get($width);
+		case IMM_PTR:
+			return self.mem_get(self.mem_get(self.inst_ptr_next + offset, common::PTR_SIZE)!.get(WORD), $width)!.get($width);
+	}
+}
+

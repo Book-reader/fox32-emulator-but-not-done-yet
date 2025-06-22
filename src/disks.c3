@@ -1,5 +1,6 @@
 module disk;
 import emulator;
+import common;
 import logger;
 import std::io;
 
@@ -18,7 +19,7 @@ struct Disk
 }
 
 Disk[MAX_DISKS] disks;
-uint buffer_addr;
+Word buffer_addr;
 
 fn void? insert(String disk_file, usz disk_id)
 {
@@ -35,11 +36,11 @@ fn void? remove(usz disk_id)
 	disks[disk_id] = {};
 }
 
-fn usz size(usz disk_id) @inline => disks[disk_id].size;
+fn Word size(usz disk_id) @inline => (Word)disks[disk_id].size;
 
-fn uint buffer() @inline => buffer_addr;
+fn Word buffer() @inline => buffer_addr;
 
-fn void set_buffer(uint addr) @inline => buffer_addr = addr;
+fn void set_buffer(Word addr) @inline => buffer_addr = addr;
 
 
 // TODO: ask for or PR an offset param for native_f(read|write)
@@ -50,11 +51,11 @@ fn void? read(Cpu* cpu, usz disk_id, usz sector)
 {
 	if (!disks[disk_id].mounted) return;
 	File* file = &disks[disk_id].file;
-	char[SECTOR_SIZE] data;
+	Byte[SECTOR_SIZE] data;
 	// libc::fread(&data, sector * SECTOR_SIZE, data.len, file.file);
 	// TODO: the reference emulator doesn't actually exit on error
 	file.seek(sector * SECTOR_SIZE)!;
-	file.read(&data)!;
+	file.read((char[])&data)!;
 	// logger::info("Read data from sector %s idx %s (0x%.8x): %s", sector, sector * SECTOR_SIZE, sector * SECTOR_SIZE, data);
 	// TODO: maybe the problem is actually that there is an off-by-one with the buffer address?
 	cpu.mem_set(buffer_addr, SECTOR_SIZE, &data)!;
@@ -72,7 +73,7 @@ fn void? write(Cpu* cpu, usz disk_id, usz sector)
 	File* file = &disks[disk_id].file;
 	//char[] data = cpu.mem_get(buffer_addr, SECTOR_SIZE)!;
 	file.seek(sector * SECTOR_SIZE)!;
-	file.write(cpu.mem_get(buffer_addr, SECTOR_SIZE)!)!;
+	file.write((char[])cpu.mem_get(buffer_addr, SECTOR_SIZE)!)!;
 	// logger::info("Wrote data into sector %s idx %s (0x%.8x): %s", sector, sector * SECTOR_SIZE, sector * SECTOR_SIZE, cpu.mem_get(buffer_addr, SECTOR_SIZE)!);
 	// libc::fwrite(data.ptr, sector * SECTOR_SIZE, data.len, file.file);
 }
