@@ -46,7 +46,7 @@ fn void? Cpu.inst_inc(&self, Instruction inst) @Inst => self.@setup_w(inst; $Typ
 	logger::debug("Incrementing %s", #src.get());
 	$Type res @noinit;
 
-	self.flags.carry = /*math::overflow_add*/$$overflow_add(#src.get(), ($Type)(1 << inst.dst.ordinal), &res)!;
+	self.flags.carry = math::overflow_add(#src.get(), ($Type)(1 << inst.dst.ordinal), &res)!;
 	self.flags.zero = res == 0;
 
 	#src.set(res)!;
@@ -57,7 +57,7 @@ fn void? Cpu.inst_dec(&self, Instruction inst) @Inst => self.@setup_w(inst; $Typ
 	logger::debug("Decrementing %s", #src);
 	$Type res @noinit;
 	
-	self.flags.carry = /*math::overflow_sub*/$$overflow_sub(#src.get(), ($Type)(1 << inst.dst.ordinal), &res)!;
+	self.flags.carry = math::overflow_sub(#src.get(), ($Type)(1 << inst.dst.ordinal), &res)!;
 	self.flags.zero = res == 0;
 
 	#src.set(res)!;
@@ -68,7 +68,7 @@ fn void? Cpu.inst_add(&self, Instruction inst) @Inst => self.@setup_w(inst; $Typ
 {
 	logger::debug("Adding %s and %s", #dst, #src);
 	$Type res @noinit;
-	self.flags.carry = $$overflow_add(#dst.get(), #src.get(), &res)!;// math::overflow_add(#dst.get(), #src.get(), &res)!;
+	self.flags.carry = math::overflow_add(#dst.get(), #src.get(), &res)!;// math::overflow_add(#dst.get(), #src.get(), &res)!;
 	self.flags.zero = res == 0;
 	#dst.set(res)!;
 }
@@ -78,7 +78,7 @@ fn void? Cpu.inst_sub(&self, Instruction inst) @Inst => self.@setup_w(inst; $Typ
 	logger::debug("Subtracting %s and %s", #dst.get(), #src.get());
 	$Type res @noinit;
 	// This also sets res
-	self.flags.carry = /*math::overflow_sub*/$$overflow_sub(#dst.get(), #src.get(), &res)!;
+	self.flags.carry = math::overflow_sub(#dst.get(), #src.get(), &res)!;
 	self.flags.zero = res == 0;
 	#dst.set(res)!;
 }
@@ -88,7 +88,7 @@ fn void? Cpu.inst_mul(&self, Instruction inst) @Inst => self.@setup_w(inst; $Typ
 	logger::debug("multiplying %s and %s", #dst.get(), #src.get());
 	$Type res @noinit;
 	// This also sets res
-	self.flags.carry = /*math::overflow_mul*/$$overflow_mul(#dst.get(), #src.get(), &res)!;
+	self.flags.carry = math::overflow_mul(#dst.get(), #src.get(), &res)!;
 	self.flags.zero = res == 0;
 	#dst.set(res)!;
 }

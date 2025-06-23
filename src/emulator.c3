@@ -11,7 +11,7 @@ import std::time;
 import std::collections::list;
 import std::math;
 
-// macro Word Word.add(self, Word other) @operator_s(+) => (Word)((uint)self + (uint)other);
+macro Word Word.add(self, Word other) @operator_s(+) => (Word)((uint)self + (uint)other);
 macro Word Word.add_h(self, Half other) @operator_s(+) => self + (Word)other;
 macro Word Word.add_b(self, Byte other) @operator_s(+) => self + (Word)other;
 // macro Word Word.add_b1(&self, Byte other) @operator(+=) => *self += (Word)other;
