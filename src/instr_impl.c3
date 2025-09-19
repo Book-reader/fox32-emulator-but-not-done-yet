@@ -16,7 +16,6 @@ attrdef @Inst @if(!$feature(MORE_PERF)) = @maydiscard;
 // this is fine when debug printing is enabled, but not otherwise
 fn void? Cpu.inst_brk(&self, Instruction inst) @Inst => self.@setup(inst, W32; #src, #dst)
 {
-	// self.move_forward(W32, inst::BRK, inst);
 	self.throw(EXC_BREAK);
 }
 
