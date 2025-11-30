@@ -7,8 +7,7 @@
 > ```
 
 > [!WARNING]
-> Don't expect the code to be of great quality for now.
-> I'll clean it up later
+> This project is an example of what happens when you use too many macros, don't do what I did and your code will be so much more maintainable
 
 ![screenshot of fox33 running some applications](screenshot.png)
 
