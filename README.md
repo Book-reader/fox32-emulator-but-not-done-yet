@@ -32,6 +32,8 @@
 - [ ] swap sp so I can run minita
 - [ ] internal refactoring of error handling
 - [ ] refactor convenience macros to be more convenient & less awfully hacky (they will bever be entirely hack free tho (cry about my overuse of macros lerno >:3))
+- [ ] implement audio
+- [ ] make clock rate stable at 33Mhz & make vsync consistently timed
 - [ ] Any other things I can think of
 
 ## building:
